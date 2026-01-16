@@ -1,4 +1,16 @@
-[gd_scene format=3 uid="uid://deqyn6fof50hu"]
+[gd_scene load_steps=5 format=3 uid="uid://deqyn6fof50hu"]
+
+[ext_resource type="Texture2D" uid="uid://dkifl6wn5bcrx" path="res://icon.svg" id="1_v5h7r"]
+
+[sub_resource type="Gradient" id="Gradient_v5h7r"]
+offsets = PackedFloat32Array(0.3, 1)
+colors = PackedColorArray(0.18717614, 0.18717614, 0.18717614, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_l07lh"]
+gradient = SubResource("Gradient_v5h7r")
+
+[sub_resource type="LabelSettings" id="LabelSettings_l07lh"]
+font_size = 40
 
 [node name="Main Menu" type="Control"]
 layout_mode = 3
@@ -7,3 +19,37 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = SubResource("GradientTexture1D_l07lh")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 0
+offset_left = 79.0
+offset_top = 67.0
+offset_right = 280.0
+offset_bottom = 122.0
+text = "Hyper Pop"
+label_settings = SubResource("LabelSettings_l07lh")
+
+[node name="Play" type="TextureButton" parent="."]
+layout_mode = 0
+offset_left = 112.0
+offset_top = 219.0
+offset_right = 240.0
+offset_bottom = 347.0
+texture_normal = ExtResource("1_v5h7r")
+
+[node name="Settings" type="TextureButton" parent="."]
+layout_mode = 0
+offset_left = 113.0
+offset_top = 394.0
+offset_right = 241.0
+offset_bottom = 522.0
+texture_normal = ExtResource("1_v5h7r")
