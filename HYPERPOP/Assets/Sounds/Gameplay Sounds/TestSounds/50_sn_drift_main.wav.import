@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cxq4wdcxaq1fs"
+path="res://.godot/imported/50_sn_drift_main.wav-a59dd2668e0022f6b9b7d6c127ca08eb.sample"
+
+[deps]
+
+source_file="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/50_sn_drift_main.wav"
+dest_files=["res://.godot/imported/50_sn_drift_main.wav-a59dd2668e0022f6b9b7d6c127ca08eb.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ddtlihtv01xw7"
+path="res://.godot/imported/SRN_player_se-032-Synth-player_se-player_027_jump_start_wav.wav-4ff7fffc46a0a8d9bafb1db14d9b8076.sample"
+
+[deps]
+
+source_file="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/SRN_player_se-032-Synth-player_se-player_027_jump_start_wav.wav"
+dest_files=["res://.godot/imported/SRN_player_se-032-Synth-player_se-player_027_jump_start_wav.wav-4ff7fffc46a0a8d9bafb1db14d9b8076.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

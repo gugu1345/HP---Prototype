@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cmyfhrwwnojqy"
+path="res://.godot/imported/swoosh-305800.mp3-2eaa216f07af690a0e16f8cd1e96a375.mp3str"
+
+[deps]
+
+source_file="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/swoosh-305800.mp3"
+dest_files=["res://.godot/imported/swoosh-305800.mp3-2eaa216f07af690a0e16f8cd1e96a375.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

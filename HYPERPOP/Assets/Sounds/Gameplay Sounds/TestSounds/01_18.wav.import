@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bykh76gx51uhj"
+path="res://.godot/imported/01_18.wav-18af8388c46a6381244fd9e49329c743.sample"
+
+[deps]
+
+source_file="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/01_18.wav"
+dest_files=["res://.godot/imported/01_18.wav-18af8388c46a6381244fd9e49329c743.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
