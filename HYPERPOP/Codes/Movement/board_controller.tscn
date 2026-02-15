@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://fsffcw4ytxtl" path="res://HYPERPOP/Assets/Characters/Ryder/RyderModel.fbx" id="3_nl2x1"]
 [ext_resource type="Script" uid="uid://cksoxjg2r74e0" path="res://HYPERPOP/Assets/Characters/Ryder/model_lerp.gd" id="4_bpovt"]
 [ext_resource type="Texture2D" uid="uid://dgyd8uepklb3g" path="res://HYPERPOP/Assets/Characters/Ryder/Outline.png" id="4_wmvvi"]
-[ext_resource type="Script" uid="uid://bo840wx8beqi3" path="res://HYPERPOP/Codes/Movement/start_ik.gd" id="5_34dk1"]
+[ext_resource type="Script" uid="uid://bo840wx8beqi3" path="res://start_ik.gd" id="5_34dk1"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_ivycn"]
 
@@ -36,20 +36,19 @@ shape = SubResource("SphereShape3D_ivycn")
 
 [node name="RyderGear" parent="." instance=ExtResource("2_5q8gg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.69393253, 0)
-top_level = true
+
+[node name="Cube" parent="RyderGear" index="0"]
+transform = Transform3D(100, 1.5124469e-05, -1.5099559e-05, 1.5099559e-05, -99.99986, -0.16483377, -1.5124469e-05, 0.16483377, -99.99986, 0, -0.23746741, 0)
+
+[node name="Cylinder_002" parent="RyderGear" index="1"]
+transform = Transform3D(41.10912, 0, 0, 0, -1.7969365e-06, 41.109116, 0, -41.109116, -1.7969365e-06, 0, -0.24596271, -0.8357613)
+visible = false
 
 [node name="SpriteSparks" parent="RyderGear" instance=ExtResource("3_g3562")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18640888, -0.25076383, 2.8995025)
 
 [node name="SpriteSparks2" parent="RyderGear" instance=ExtResource("3_g3562")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.066161096, -0.25076383, 2.8995025)
-
-[node name="Cube" parent="RyderGear" index="2"]
-transform = Transform3D(100, 1.5124469e-05, -1.5099559e-05, 1.5099559e-05, -99.99986, -0.16483377, -1.5124469e-05, 0.16483377, -99.99986, 0, -0.23746741, 0)
-
-[node name="Cylinder_002" parent="RyderGear" index="3"]
-transform = Transform3D(41.10912, 0, 0, 0, -1.7969365e-06, 41.109116, 0, -41.109116, -1.7969365e-06, 0, -0.24596271, -0.8357613)
-visible = false
 
 [node name="FOOT_IK_L" type="Marker3D" parent="RyderGear"]
 transform = Transform3D(-0.36916533, 0.41277498, -0.12632394, -0.016367747, -0.17948408, -0.53864783, -0.43136176, -0.346448, 0.1285484, -0.02129732, 0.27198005, 0.1101127)

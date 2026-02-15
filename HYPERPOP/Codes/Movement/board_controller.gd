@@ -23,8 +23,9 @@ class_name BoardController
 # CONFIG — PHYSICS
 @export_category("Physics")
 @export var gravity_mul: float = 3.0
-@export var stick_force: float = 50.0
+@export var stick_force: float = 120.0 # Increased to stick better to slopes
 @export var slope_alignment_speed: float = 22.0
+@export var snap_length: float = 0.8 # Snap distance to keep grounded on slopes
 
 # =================================================
 # CONFIG — SLOPE MOMENTUM
@@ -130,6 +131,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	set_floor_max_angle(deg_to_rad(170))
+	set_floor_snap_length(snap_length) # Enable floor snapping
 	previous_speed = current_speed
 
 	_read_input()
@@ -203,6 +205,7 @@ func _execute_jump() -> void:
 	var force: float = lerp(min_jump_force, max_jump_force, current_jump_charge)
 	current_jump_charge = 0.0
 	velocity += get_floor_normal() * force
+	set_floor_snap_length(0.0) # Disable snap during jump
 	if sfx_jump_launch: sfx_jump_launch.play()
 
 func _handle_landing() -> void:
@@ -262,8 +265,22 @@ func _apply_horizontal_movement() -> void:
 
 func _apply_floor_stick(delta: float) -> void:
 	if not is_on_floor(): return
-	var stick: float = stick_force * clamp(current_speed / max_speed, 0.4, 2.0)
-	velocity -= get_floor_normal() * stick * delta
+	
+	# Scale stick force based on speed (more speed = more stick needed)
+	var stick: float = stick_force * clamp(current_speed / max_speed, 0.6, 2.5)
+	
+	# Apply stronger stick force when going down slopes
+	var floor_normal = get_floor_normal()
+	var slope_factor = 1.0 - floor_normal.dot(Vector3.UP)
+	if slope_factor > 0.1:
+		stick *= 1.0 + (slope_factor * 1.5) # Increase stick on slopes
+	
+	velocity -= floor_normal * stick * delta
+	
+	# Dampen any upward velocity component when on ground
+	var upward_velocity = velocity.dot(floor_normal)
+	if upward_velocity > 0:
+		velocity -= floor_normal * upward_velocity * 0.5
 
 func _align_to_surface(delta: float) -> void:
 	var target_up: Vector3 = get_floor_normal() if is_on_floor() else Vector3.UP
