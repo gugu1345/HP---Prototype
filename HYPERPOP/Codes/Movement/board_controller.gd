@@ -155,9 +155,8 @@ func _physics_process(delta: float) -> void:
 # =================================================
 # INPUT & SPEED
 func _read_input() -> void:
-	input_dir.x = Input.get_axis("turn_right", "turn_left")
-	if input_dir.x == 0.0:
-		input_dir.x = Input.get_axis("ui_right", "ui_left")
+	input_dir.x = Input.get_axis("right", "left")
+
 
 	is_charging_jump = Input.is_action_pressed("Jump") and is_on_floor()
 
