@@ -46,28 +46,7 @@ class_name BoardController
 @export var lean_responsiveness: float = 8.0
 @export var crouch_tilt_amount: float = -0.12
 
-# =================================================
-# CONFIG — CAMERA (SONIC RIDERS STYLE)
-@export_category("Camera System")
-@export var camera_node: Camera3D
-@export var cam_target_height: float = 1.8 
-@export var cam_base_offset: Vector3 = Vector3(0, 1.2, 0)
-@export var cam_base_dist: float = 8.5
-@export var cam_speed_dist_add: float = 0.9
-@export var cam_fov_base: float = 70.0
-@export var cam_fov_max: float = 90.0
-@export var cam_follow_speed: float = 10.0
-@export var cam_rotation_smoothness: float = 12.0
-
-@export_group("Camera Jump Effects")
-@export var cam_jump_zoom_fov: float = -15.0 
-@export var cam_jump_zoom_dist: float = -2.0 
-@export var cam_jump_lerp_speed: float = 0.8 # <--- Reduzido para ser bem lento e dramático
-
-@export_group("Camera Controls")
-@export var cam_mouse_sens: float = 0.002
-@export var cam_joy_sens: float = 3.0
-@export var cam_auto_reset_speed: float = 3.5
+# Camera is handled by a dedicated CameraController node now.
 
 # =================================================
 # CONFIG — DRIFT
@@ -109,25 +88,7 @@ var drift_charge: float = 0.0
 var dash_timer: float = 0.0
 var dash_velocity: float = 0.0
 
-# Camera State
-var _cam_yaw: float = 0.0
-var _cam_pitch: float = -0.15 
-var _cam_manual_timer: float = 0.0
-var _cam_jump_effect_ratio: float = 0.0 
 
-# =================================================
-# MAIN LOOP
-func _ready() -> void:
-	if camera_node:
-		camera_node.top_level = true 
-		_cam_yaw = global_rotation.y
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion and camera_node:
-		_cam_yaw -= event.relative.x * cam_mouse_sens
-		_cam_pitch -= event.relative.y * cam_mouse_sens
-		_cam_manual_timer = 1.2
 
 func _physics_process(delta: float) -> void:
 	set_floor_max_angle(deg_to_rad(170))
@@ -149,7 +110,6 @@ func _physics_process(delta: float) -> void:
 
 	_handle_landing()
 	_update_board_visual(delta)
-	_update_camera_riders(delta)
 	_update_engine_audio()
 	
 	was_on_floor = is_on_floor()
@@ -310,54 +270,6 @@ func _update_board_visual(delta: float) -> void:
 	visual_basis = visual_basis.rotated(global_transform.basis.x, crouch_tilt_amount if is_charging_jump else 0.0)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
-# =================================================
-# CAMERA LOGIC (UPDATED PROGRESSIVE)
-func _update_camera_riders(delta: float) -> void:
-	if not camera_node: return
-
-	var joy_axis = Input.get_vector("camera_left", "camera_right", "camera_up", "camera_down")
-	if joy_axis.length() > 0.1:
-		_cam_yaw -= joy_axis.x * cam_joy_sens * delta
-		_cam_pitch -= joy_axis.y * cam_joy_sens * delta
-		_cam_manual_timer = 1.2
-	
-	_cam_pitch = clamp(_cam_pitch, -0.9, 0.5)
-
-	if current_speed > 1.0:
-		_cam_manual_timer -= delta
-		if _cam_manual_timer <= 0:
-			var target_yaw = global_rotation.y
-			_cam_yaw = lerp_angle(_cam_yaw, target_yaw, cam_auto_reset_speed * delta)
-			_cam_pitch = lerp(_cam_pitch, -0.15, cam_auto_reset_speed * delta)
-
-	# --- ATUALIZADO: Zoom mais lento e progressivo ---
-	var target_effect = 1.0 if is_charging_jump else 0.0
-	_cam_jump_effect_ratio = lerp(_cam_jump_effect_ratio, target_effect, cam_jump_lerp_speed * delta)
-
-	var speed_ratio = clamp(current_speed / max_speed, 0.0, 1.0)
-	var fov_target = cam_fov_base + (speed_ratio * (cam_fov_max - cam_fov_base))
-	
-	fov_target += (_cam_jump_effect_ratio * cam_jump_zoom_fov)
-	camera_node.fov = lerp(camera_node.fov, fov_target, delta * 4.0)
-
-	var dist_final = cam_base_dist + (speed_ratio * cam_speed_dist_add)
-	dist_final += (_cam_jump_effect_ratio * cam_jump_zoom_dist)
-
-	var cam_basis = Basis().rotated(Vector3.UP, _cam_yaw).rotated(Vector3.RIGHT, _cam_pitch)
-	camera_node.global_transform.basis = camera_node.global_transform.basis.slerp(cam_basis, cam_rotation_smoothness * delta)
-
-	var direction = -camera_node.global_transform.basis.z
-	var target_pos = global_position 
-	target_pos += Vector3.UP * (cam_target_height + cam_base_offset.y) 
-	target_pos -= direction * dist_final
-	
-	camera_node.global_position = camera_node.global_position.lerp(target_pos, cam_follow_speed * delta)
-	
-	var focus_point = global_position + Vector3.UP * cam_target_height
-	focus_point += direction * (speed_ratio * 3.0) 
-	
-	var look_transform = camera_node.global_transform.looking_at(focus_point)
-	camera_node.global_transform.basis = camera_node.global_transform.basis.slerp(look_transform.basis, 5.0 * delta)
 
 # =================================================
 # AUDIO ENGINE

@@ -30,11 +30,17 @@ class_name CameraController
 @export var reset_speed : float = 3.5 
 @export var rotation_smoothness : float = 12.0 # Suavização da rotação (Slerp)
 
+@export_group("Jump Effects")
+@export var cam_jump_zoom_fov : float = -15.0
+@export var cam_jump_zoom_dist : float = -2.0
+@export var cam_jump_lerp_speed : float = 0.8
+
 # =================================================
 # STATE
 var yaw : float = 0.0
 var pitch : float = -0.15 # Começa levemente inclinada para baixo (Riders style)
 var manual_control_timer : float = 0.0
+var _cam_jump_effect_ratio : float = 0.0
 
 # =================================================
 func _ready() -> void:
@@ -94,29 +100,34 @@ func _apply_camera_logic(delta: float) -> void:
 		speed_ratio = clamp(player.velocity.length() / 20.0, 0.0, 1.0)
 
 	# 2. FOV DINÂMICO
+	# Jump/charge effect (if the player exposes `is_charging_jump`)
+	var target_effect: float = 0.0
+	if "is_charging_jump" in player and player.is_charging_jump:
+		target_effect = 1.0
+	_cam_jump_effect_ratio = lerp(_cam_jump_effect_ratio, target_effect, cam_jump_lerp_speed * delta)
+
 	var target_fov = fov_base + (speed_ratio * (fov_max - fov_base))
+	target_fov += (_cam_jump_effect_ratio * cam_jump_zoom_fov)
 	self.fov = lerp(self.fov, target_fov, fov_lerp_speed * delta)
 
 	# 3. ROTAÇÃO (Slerp para feeling flutuante/smooth)
 	var target_basis = Basis().rotated(Vector3.UP, yaw).rotated(Vector3.RIGHT, pitch)
 	global_transform.basis = global_transform.basis.slerp(target_basis, rotation_smoothness * delta)
 
-	# 4. POSIÇÃO FINAL
-	# No Riders, a câmera se afasta mais conforme a velocidade aumenta
+	# 4. POSIÇÃO FINAL (com jump zoom/dist effect)
 	var dynamic_dist = base_distance + (speed_ratio * speed_distance_mult)
-	
-	var back_direction = global_transform.basis.z
-	
-	# Posição ideal = Posição do Player + Offset de Altura + (Direção Traseira * Distancia)
-	# O camera_offset.y aqui permite subir a câmera sem mudar o ângulo do "LookAt"
-	var target_pos = player.global_position + (Vector3.UP * (target_height_offset + camera_offset.y)) 
-	target_pos += back_direction * dynamic_dist
-	target_pos += global_transform.basis.x * camera_offset.x # Offset lateral (se quiser estilo ombro)
+	var dist_final = dynamic_dist + (_cam_jump_effect_ratio * cam_jump_zoom_dist)
 
-	# Suavização da posição
+	var direction = -global_transform.basis.z
+	var target_pos = player.global_position + (Vector3.UP * (target_height_offset + camera_offset.y))
+	target_pos -= direction * dist_final
+	target_pos += global_transform.basis.x * camera_offset.x
+
 	global_position = global_position.lerp(target_pos, follow_lerp_speed * delta)
 
-	# 5. OLHAR PARA O PLAYER (Com offset levemente acima)
-	# O "look_ahead" dá a sensação de que a câmera antecipa a curva
-	var look_target = player.global_position + (Vector3.UP * target_height_offset)
-	look_at(look_target)
+	# 5. OLHAR PARA O PLAYER (com suavização do look-at)
+	var focus_point = player.global_position + (Vector3.UP * target_height_offset)
+	focus_point += direction * (speed_ratio * 3.0)
+
+	var look_transform = global_transform.looking_at(focus_point)
+	global_transform.basis = global_transform.basis.slerp(look_transform.basis, 5.0 * delta)
