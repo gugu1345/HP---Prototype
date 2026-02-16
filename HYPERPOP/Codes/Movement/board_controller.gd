@@ -102,7 +102,6 @@ func _physics_process(delta: float) -> void:
 	_apply_slope_momentum(delta)
 	_apply_floor_stick(delta)
 	_align_to_surface(delta)
-	_update_jump_charge(delta)
 	_update_drift(delta)
 	_update_speed(delta)
 	_apply_horizontal_movement()
@@ -118,10 +117,7 @@ func _physics_process(delta: float) -> void:
 # INPUT & SPEED
 func _read_input() -> void:
 	input_dir.x = Input.get_axis("right", "left")
-
-
 	is_charging_jump = Input.is_action_pressed("Jump") and is_on_floor()
-
 	if Input.is_action_just_released("Jump") and is_on_floor():
 		_execute_jump()
 
@@ -133,10 +129,15 @@ func _update_speed(delta: float) -> void:
 
 	# --- ATUALIZADO: Freio Progressivo (Lerp) ---
 	if is_charging_jump:
+		current_jump_charge = move_toward(current_jump_charge, 1.0, (delta / max_charge_time) * 0.9)
+		if sfx_jump_charge_loop and not sfx_jump_charge_loop.playing: sfx_jump_charge_loop.play()
+		if sfx_jump_charge_loop:
+			sfx_jump_charge_loop.pitch_scale = 1.0 + current_jump_charge * 0.8
 		# Lerp cria uma curva suave: freia mais no começo e suaviza no final
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
 		return 
-
+	else:
+		if sfx_jump_charge_loop and sfx_jump_charge_loop.playing: sfx_jump_charge_loop.stop()
 	var throttle: float = Input.get_action_strength("throttle") 
 	var brake: float = Input.get_action_strength("brake") 
 
@@ -149,17 +150,7 @@ func _update_speed(delta: float) -> void:
 		var drag: float = friction if is_on_floor() else air_drag
 		current_speed = move_toward(current_speed, 0.0, drag * delta)
 
-# =================================================
-# JUMP
-func _update_jump_charge(delta: float) -> void:
-	if is_charging_jump:
-		# Também suavizei levemente o carregamento da barra de força
-		current_jump_charge = move_toward(current_jump_charge, 1.0, (delta / max_charge_time) * 0.9)
-		if sfx_jump_charge_loop and not sfx_jump_charge_loop.playing: sfx_jump_charge_loop.play()
-		if sfx_jump_charge_loop:
-			sfx_jump_charge_loop.pitch_scale = 1.0 + current_jump_charge * 0.8
-	else:
-		if sfx_jump_charge_loop and sfx_jump_charge_loop.playing: sfx_jump_charge_loop.stop()
+	
 
 func _execute_jump() -> void:
 	var force: float = lerp(min_jump_force, max_jump_force, current_jump_charge)
@@ -219,9 +210,9 @@ func _apply_rotation(delta: float) -> void:
 		rotate_object_local(Vector3.UP, input_dir.x * rotation_speed * turn_scale * delta)
 
 func _apply_horizontal_movement() -> void:
-	var forward: Vector3 = -board_mesh.global_transform.basis.z
-	velocity.x = forward.x * current_speed
-	velocity.z = forward.z * current_speed
+	var forward: Vector3 = -global_transform.basis.z
+	ChangeVelocity(forward, current_speed - velocity.dot(forward))
+
 
 func _apply_floor_stick(delta: float) -> void:
 	if not is_on_floor(): return
@@ -235,12 +226,13 @@ func _apply_floor_stick(delta: float) -> void:
 	if slope_factor > 0.1:
 		stick *= 1.0 + (slope_factor * 1.5) # Increase stick on slopes
 	
-	velocity -= floor_normal * stick * delta
-	
+	ChangeVelocity(-floor_normal, stick * delta)
+
 	# Dampen any upward velocity component when on ground
 	var upward_velocity = velocity.dot(floor_normal)
 	if upward_velocity > 0:
-		velocity -= floor_normal * upward_velocity * 0.5
+		ChangeVelocity(-floor_normal, upward_velocity * 0.5) # Dampen upward velocity to prevent bouncing
+
 
 func _align_to_surface(delta: float) -> void:
 	var target_up: Vector3 = get_floor_normal() if is_on_floor() else Vector3.UP
@@ -273,7 +265,8 @@ func _update_board_visual(delta: float) -> void:
 	if Rider_Model:
 			Rider_Model.global_transform.basis = Rider_Model.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
-
+func ChangeVelocity(direction: Vector3, force: float) -> void:
+	velocity += direction.normalized() * force
 # =================================================
 # AUDIO ENGINE
 func _update_engine_audio() -> void:

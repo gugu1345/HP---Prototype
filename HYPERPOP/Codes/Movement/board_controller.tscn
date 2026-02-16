@@ -43,7 +43,6 @@ transform = Transform3D(100, 1.5124469e-05, -1.5099559e-05, 1.5099559e-05, -99.9
 
 [node name="Cylinder_002" parent="RyderGear" index="1"]
 transform = Transform3D(41.10912, 0, 0, 0, -1.7969365e-06, 41.109116, 0, -41.109116, -1.7969365e-06, 0, -0.24596271, -0.8357613)
-visible = false
 
 [node name="SpriteSparks" parent="RyderGear" instance=ExtResource("3_g3562")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18640888, -0.25076383, 2.8995025)
@@ -153,6 +152,7 @@ script = ExtResource("5_34dk1")
 
 [node name="BoardTarget" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6796093, 0)
+visible = false
 
 [node name="BoardMesh2" type="MeshInstance3D" parent="BoardTarget"]
 transform = Transform3D(1.0760221, 0, 0, 0, 1.0760221, 0, 0, 0, 1.0760221, 0, 0, 0)
