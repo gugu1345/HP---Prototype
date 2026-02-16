@@ -10,6 +10,7 @@ class_name BoardController
 @export var friction: float = 15.0
 @export var air_drag: float = 5.0
 @export var rotation_speed: float = 1.5
+@export var rotation_smoothing: float = 12.0 # NEW: Smooths steering input
 
 # =================================================
 # CONFIG — JUMP & CHARGE
@@ -26,6 +27,7 @@ class_name BoardController
 @export var stick_force: float = 120.0 # Increased to stick better to slopes
 @export var slope_alignment_speed: float = 22.0
 @export var snap_length: float = 0.8 # Snap distance to keep grounded on slopes
+@export var max_velocity: float = 150.0 # NEW: Maximum velocity cap for ChangeVelocity
 
 # =================================================
 # CONFIG — SLOPE MOMENTUM
@@ -75,6 +77,7 @@ class_name BoardController
 var current_speed: float = 0.0
 var previous_speed: float = 0.0
 var input_dir: Vector2 = Vector2.ZERO
+var smoothed_input_x: float = 0.0 # NEW: Smoothed steering input
 var was_on_floor: bool = true
 
 # Jump
@@ -96,7 +99,7 @@ func _physics_process(delta: float) -> void:
 	set_floor_snap_length(snap_length) # Enable floor snapping
 	previous_speed = current_speed
 
-	_read_input()
+	_read_input(delta)
 	_apply_surface_gravity(delta)
 	_apply_rotation(delta)
 	_apply_slope_momentum(delta)
@@ -115,8 +118,11 @@ func _physics_process(delta: float) -> void:
 
 # =================================================
 # INPUT & SPEED
-func _read_input() -> void:
+func _read_input(delta: float) -> void:
 	input_dir.x = Input.get_axis("right", "left")
+	# NEW: Smooth the steering input for more natural turning
+	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
+	
 	is_charging_jump = Input.is_action_pressed("Jump") and is_on_floor()
 	if Input.is_action_just_released("Jump") and is_on_floor():
 		_execute_jump()
@@ -207,7 +213,8 @@ func _apply_rotation(delta: float) -> void:
 	var turn_scale: float = 0.5 if is_charging_jump else 1.0
 	if is_drifting: turn_scale *= drift_turn_multiplier * clamp(current_speed / max_speed, 0.5, 1.0)
 	if abs(current_speed) > 1.0 or is_drifting:
-		rotate_object_local(Vector3.UP, input_dir.x * rotation_speed * turn_scale * delta)
+		# UPDATED: Use smoothed_input_x instead of input_dir.x for smoother turning
+		rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
 
 func _apply_horizontal_movement() -> void:
 	var forward: Vector3 = -global_transform.basis.z
@@ -225,8 +232,7 @@ func _apply_floor_stick(delta: float) -> void:
 	var slope_factor = 1.0 - floor_normal.dot(Vector3.UP)
 	if slope_factor > 0.1:
 		stick *= 1.0 + (slope_factor * 1.5) # Increase stick on slopes
-	
-	ChangeVelocity(-floor_normal, stick * delta)
+		ChangeVelocity(-floor_normal, stick * delta)
 
 	# Dampen any upward velocity component when on ground
 	var upward_velocity = velocity.dot(floor_normal)
@@ -265,8 +271,16 @@ func _update_board_visual(delta: float) -> void:
 	if Rider_Model:
 			Rider_Model.global_transform.basis = Rider_Model.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
+# =================================================
+# UPDATED: ChangeVelocity with speed cap
 func ChangeVelocity(direction: Vector3, force: float) -> void:
 	velocity += direction.normalized() * force
+	
+	# Cap the velocity to max_velocity to prevent excessive speeds
+	var current_velocity_magnitude = velocity.length()
+	if current_velocity_magnitude > max_velocity:
+		velocity = velocity.normalized() * max_velocity
+
 # =================================================
 # AUDIO ENGINE
 func _update_engine_audio() -> void:
