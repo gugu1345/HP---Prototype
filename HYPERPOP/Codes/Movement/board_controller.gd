@@ -37,6 +37,7 @@ class_name BoardController
 @export_category("Visuals")
 @export var board_mesh: Node3D
 @export var board_target: Node3D
+@export var Rider_Model: Node3D
 @export var visual_spring_strength: float = 350.0
 @export var visual_spring_damping: float = 30.0
 
@@ -137,8 +138,8 @@ func _update_speed(delta: float) -> void:
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
 		return 
 
-	var throttle: float = Input.get_action_strength("throttle") if InputMap.has_action("throttle") else Input.get_action_strength("ui_up")
-	var brake: float = Input.get_action_strength("brake") if InputMap.has_action("brake") else Input.get_action_strength("ui_down")
+	var throttle: float = Input.get_action_strength("throttle") 
+	var brake: float = Input.get_action_strength("brake") 
 
 	if throttle > 0.0:
 		current_speed = move_toward(current_speed, max_speed, acceleration * delta)
@@ -269,6 +270,9 @@ func _update_board_visual(delta: float) -> void:
 	visual_basis = visual_basis.rotated(global_transform.basis.z, current_tilt)
 	visual_basis = visual_basis.rotated(global_transform.basis.x, crouch_tilt_amount if is_charging_jump else 0.0)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
+
+	if Rider_Model:
+			Rider_Model.global_transform.basis = Rider_Model.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
 
 # =================================================

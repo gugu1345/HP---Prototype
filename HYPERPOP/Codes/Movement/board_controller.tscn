@@ -25,11 +25,12 @@ size = Vector3(1.21, 0.185, 3.635)
 transparency = 1
 albedo_color = Color(0.3019608, 0.5411765, 0.9254902, 0.25882354)
 
-[node name="BoardController" type="CharacterBody3D" node_paths=PackedStringArray("board_mesh", "board_target")]
+[node name="BoardController" type="CharacterBody3D" node_paths=PackedStringArray("board_mesh", "board_target", "Rider_Model")]
 floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
 board_mesh = NodePath("RyderGear")
 board_target = NodePath("BoardTarget")
+Rider_Model = NodePath("RyderGear/RyderModel")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_ivycn")
@@ -60,8 +61,7 @@ transform = Transform3D(0.037723187, 0.5373371, -0.1801936, -0.0044110687, -0.18
 transform = Transform3D(-0.99999994, 0, -1.5099579e-07, 0, 0.99999994, 0, 1.5099579e-07, 0, -0.99999994, -0.15770885, -0.23675048, 0.43500087)
 
 [node name="RyderModel" parent="RyderGear" node_paths=PackedStringArray("target") instance=ExtResource("3_nl2x1")]
-transform = Transform3D(-0.568, 0, 8.576562e-08, 0, 0.568, 0, -8.576562e-08, 0, -0.568, -0.15770885, 0.5008868, 0.43500087)
-top_level = true
+transform = Transform3D(-0.568, 0, 8.576562e-08, 0, 0.568, 0, -8.576562e-08, 0, -0.568, -0.15770885, -0.19304574, 0.43500087)
 script = ExtResource("4_bpovt")
 target = NodePath("../RYDER_TARGET")
 
