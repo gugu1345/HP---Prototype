@@ -97,16 +97,15 @@ func _physics_process(delta: float) -> void:
 	previous_speed = current_speed
 
 	_read_input()
+	_apply_surface_gravity(delta)
+	_apply_rotation(delta)
+	_apply_slope_momentum(delta)
+	_apply_floor_stick(delta)
+	_align_to_surface(delta)
 	_update_jump_charge(delta)
 	_update_drift(delta)
 	_update_speed(delta)
-	_apply_slope_momentum(delta)
-	_apply_surface_gravity(delta)
-	_apply_rotation(delta)
 	_apply_horizontal_movement()
-	_apply_floor_stick(delta)
-	_align_to_surface(delta)
-
 	move_and_slide()
 
 	_handle_landing()
@@ -204,13 +203,13 @@ func _apply_slope_momentum(delta: float) -> void:
 	var slope: float = 1.0 - normal.dot(Vector3.UP)
 	if slope < 0.02: return
 	var downhill: Vector3 = Vector3.DOWN.slide(normal).normalized()
-	var alignment: float = downhill.dot(-transform.basis.z)
+	var alignment: float = downhill.dot( -board_mesh.global_transform.basis.z)
 	current_speed += alignment * slope_accel_strength * slope * delta
 	current_speed = clamp(current_speed, 0.0, max_speed * 2.0)
 
 func _apply_surface_gravity(delta: float) -> void:
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
-	if is_on_floor(): velocity += -get_floor_normal() * g * delta
+	if is_on_floor(): velocity -= get_floor_normal() * g * delta
 	else: velocity.y -= g * delta
 
 func _apply_rotation(delta: float) -> void:
@@ -220,7 +219,7 @@ func _apply_rotation(delta: float) -> void:
 		rotate_object_local(Vector3.UP, input_dir.x * rotation_speed * turn_scale * delta)
 
 func _apply_horizontal_movement() -> void:
-	var forward: Vector3 = -transform.basis.z
+	var forward: Vector3 = -board_mesh.global_transform.basis.z
 	velocity.x = forward.x * current_speed
 	velocity.z = forward.z * current_speed
 
