@@ -17,7 +17,6 @@ class_name BoardController
 @export_category("Jump")
 @export var min_jump_force: float = 12.0
 @export var max_jump_force: float = 35.0
-@export var max_charge_time: float = 0.8
 @export var jump_charge_drag: float = 0.3
 
 # =================================================
@@ -33,7 +32,6 @@ class_name BoardController
 # CONFIG — SLOPE PHYSICS
 @export_category("Slope Physics")
 @export var slope_accel_strength: float = 22.0
-@export var slope_alignment_speed: float = 22.0
 @export var air_alignment_speed: float = 5.0
 
 # =================================================
@@ -90,16 +88,8 @@ class_name BoardController
 @export var fov_lerp_speed : float = 3.5
 
 # =================================================
-# AUDIO
-@export_category("Audio")
-@export var sfx_jump_launch: AudioStreamPlayer3D
-@export var sfx_jump_charge_loop: AudioStreamPlayer3D
-@export var sfx_land: AudioStreamPlayer3D
-@export var sfx_drift_loop: AudioStreamPlayer3D
-@export var sfx_dash: AudioStreamPlayer3D
-@export var sfx_engine_loop: AudioStreamPlayer3D
-@export var sfx_brake: AudioStreamPlayer3D
-
+# Sound
+@export var PlayerSFX: PlaySoundsFX
 # =================================================
 # STATE
 var current_speed: float = 0.0
@@ -109,8 +99,7 @@ var was_on_floor: bool = true
 var last_surface_normal: Vector3 = Vector3.UP
 var air_time: float = 0.0
 
-# Jump
-var current_jump_charge: float = 0.0
+
 var is_charging_jump: bool = false
 
 # Visual/Drift
@@ -147,7 +136,7 @@ func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
 	_update_air_pitch(delta)          # NOVO
-	_update_jump_charge(delta)
+	PlayerSFX._update_jump_charge(delta,is_charging_jump,is_wall_running)
 	_update_drift(delta)
 	_update_speed(delta)
 	
@@ -185,7 +174,7 @@ func _physics_process(delta: float) -> void:
 	_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
 	_update_board_visual(delta)
-	_update_engine_audio()
+	PlayerSFX._update_engine_audio(current_speed,max_speed)
 	
 	# Atualiza estados passados
 	was_on_floor = is_on_floor()
@@ -226,12 +215,8 @@ func _update_air_pitch(delta: float) -> void:
 # INPUT
 func _read_input(delta: float) -> void:
 	input_dir.x = 0.0
-	if Input.is_key_pressed(KEY_A): input_dir.x += 1.0
-	if Input.is_key_pressed(KEY_D): input_dir.x -= 1.0
-	if input_dir.x == 0.0:
-		input_dir.x = Input.get_axis("turn_right", "turn_left")
-	if input_dir.x == 0.0:
-		input_dir.x = Input.get_axis("ui_right", "ui_left")
+	input_dir.x += Input.get_action_strength("left") - Input.get_action_strength("right")
+
 	
 	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
 	
@@ -242,18 +227,10 @@ func _read_input(delta: float) -> void:
 
 # =================================================
 # JUMP
-func _update_jump_charge(delta: float) -> void:
-	if is_charging_jump && (is_on_floor() || is_wall_running):
-		current_jump_charge = move_toward(current_jump_charge, 1.0, delta / max_charge_time)
-		if sfx_jump_charge_loop && !sfx_jump_charge_loop.playing:
-			sfx_jump_charge_loop.play()
-	else:
-		current_jump_charge = 0.0
-		if sfx_jump_charge_loop && sfx_jump_charge_loop.playing:
-			sfx_jump_charge_loop.stop()
+
 
 func _execute_jump() -> void:
-	var force = lerp(min_jump_force, max_jump_force, current_jump_charge)
+	var force = lerp(min_jump_force, max_jump_force, PlayerSFX.current_jump_charge)
 	floor_snap_length = 0.0
 	if is_wall_running && wall_normal != Vector3.ZERO:
 		velocity += wall_normal * force * 1.4
@@ -262,15 +239,15 @@ func _execute_jump() -> void:
 		_on_wall_run_exit()
 	else:
 		velocity += last_surface_normal * force
-	if sfx_jump_launch: sfx_jump_launch.play()
-	current_jump_charge = 0.0
+	PlayerSFX.play_jump_launch()
+	PlayerSFX.current_jump_charge = 0.0
 
 func _handle_landing(delta: float) -> void:
 	if !is_on_floor():
 		air_time += delta
 		return
 	if !was_on_floor && air_time > 0.15:
-		if sfx_land: sfx_land.play()
+		PlayerSFX.play_land()
 		_reset_ik_positions()
 
 # =================================================
@@ -279,22 +256,20 @@ func _update_drift(delta: float) -> void:
 	if !is_on_floor() || current_speed < drift_min_speed:
 		is_drifting = false
 		drift_charge = 0.0
-		if sfx_drift_loop && sfx_drift_loop.playing: sfx_drift_loop.stop()
+		PlayerSFX.stop_drift_loop()
 		return
 	
 	is_drifting = Input.is_action_pressed("drift") && abs(input_dir.x) > 0.1
 	if is_drifting:
 		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
 		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
-		if sfx_drift_loop && !sfx_drift_loop.playing:
-			sfx_drift_loop.play()
+		PlayerSFX.play_drift_loop()
 	else:
-		if sfx_drift_loop && sfx_drift_loop.playing:
-			sfx_drift_loop.stop()
+		PlayerSFX.stop_drift_loop()
 		if drift_charge >= 1.0:
 			dash_velocity = current_speed + drift_dash_force
 			dash_timer = drift_dash_duration
-			if sfx_dash: sfx_dash.play()
+			PlayerSFX.play_dash()
 			drift_charge = 0.0
 
 # =================================================
@@ -315,9 +290,9 @@ func _update_speed(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S): brake = 1.0
 	
 	if brake > 0.0 && current_speed > 1.0:
-		if sfx_brake && !sfx_brake.playing: sfx_brake.play()
+		PlayerSFX.play_brake()
 	else:
-		if sfx_brake && sfx_brake.playing: sfx_brake.stop()
+		PlayerSFX.stop_brake()
 	
 	if throttle > 0:
 		current_speed = move_toward(current_speed, max_speed, acceleration * delta)
@@ -337,40 +312,6 @@ func _update_speed(delta: float) -> void:
 		current_speed = max(current_speed, 0.0)
 
 	
-
-func _execute_jump() -> void:
-	var force: float = lerp(min_jump_force, max_jump_force, current_jump_charge)
-	current_jump_charge = 0.0
-	velocity += get_floor_normal() * force
-	set_floor_snap_length(0.0) # Disable snap during jump
-	if sfx_jump_launch: sfx_jump_launch.play()
-
-func _handle_landing() -> void:
-	if is_on_floor() and not was_on_floor and sfx_land: sfx_land.play()
-
-# =================================================
-# DRIFT + DASH
-func _update_drift(delta: float) -> void:
-	if not is_on_floor() or current_speed < drift_min_speed:
-		is_drifting = false
-		drift_charge = 0.0
-		if sfx_drift_loop and sfx_drift_loop.playing: sfx_drift_loop.stop()
-		return
-
-	is_drifting = Input.is_action_pressed("drift") and abs(input_dir.x) > 0.1
-
-	if is_drifting:
-		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
-		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
-		if sfx_drift_loop and not sfx_drift_loop.playing: sfx_drift_loop.play()
-	else:
-		if sfx_drift_loop and sfx_drift_loop.playing: sfx_drift_loop.stop()
-
-		if drift_charge >= 1.0:
-			dash_velocity = current_speed + drift_dash_force
-			dash_timer = drift_dash_duration
-			if sfx_dash: sfx_dash.play()
-		drift_charge = 0.0
 
 # =================================================
 # PHYSICS
@@ -443,7 +384,7 @@ func _apply_ramp_boost_on_leave() -> void:
 	if was_on_floor && !is_on_floor():
 		var angle_factor = 1.0 - last_surface_normal.dot(Vector3.UP)
 		if angle_factor > 0.15:
-			velocity += velocity.normalized() * slope_launch_boost * angle_factor
+			velocity += velocity.normalized() * slope_alignment_speed * angle_factor
 
 # =================================================
 # CAMERA
@@ -477,13 +418,6 @@ func _update_board_visual(delta: float) -> void:
 	
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
-func _update_engine_audio() -> void:
-	if !sfx_engine_loop: return
-	if current_speed > 1:
-		if !sfx_engine_loop.playing: sfx_engine_loop.play()
-		sfx_engine_loop.pitch_scale = lerp(0.9, 1.6, current_speed / max_speed)
-	else:
-		if sfx_engine_loop.playing: sfx_engine_loop.stop()
 
 # =================================================
 # WALLRUN IK

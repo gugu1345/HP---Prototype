@@ -2,14 +2,11 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://04i01j1y4akf"
+uid="uid://bs78nmi6gng08"
 path.s3tc="res://.godot/imported/TrackAndBG_ScifiSupports_ORANGE_PX1.png-e729915813ad1df43f42a5f4f57d119f.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
-}
-generator_parameters={
-"md5": "587475e3327b2a6df25e318968cb0f95"
 }
 
 [deps]
