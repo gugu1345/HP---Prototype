@@ -149,7 +149,7 @@ func _physics_process(delta: float) -> void:
 		up_direction = wall_normal
 		_apply_floor_stick(delta)
 	elif is_on_floor():
-		_align_Board(delta, get_floor_normal())
+		_align_Board(delta, get_floor_normal(),true)
 		up_direction = get_floor_normal()
 		_apply_floor_stick(delta)
 	else:
