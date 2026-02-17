@@ -76,17 +76,10 @@ class_name BoardController
 @export var drift_dash_duration: float = 0.2
 @export var drift_deceleration_rate: float = 8.0
 
-# =================================================
-# CONFIG — CAMERA
-@export_category("Camera Logic")
-@export var camera_node : Camera3D
-@export_group("Drift FX Settings")
-@export var drift_fov_target : float = 48.0
-@export_group("General Camera Responsiveness")
-@export var move_lerp_speed : float = 1.0
-@export var rotation_lerp_speed : float = 6.0
-@export var fov_lerp_speed : float = 3.5
-
+#==================================================
+#Camra
+@export_category("Source")
+@export var Cam: CameraController
 # =================================================
 # Sound
 @export var PlayerSFX: PlaySoundsFX
@@ -117,7 +110,7 @@ var wall_normal: Vector3 = Vector3.ZERO
 # Air pitch 
 var current_air_pitch: float = 0.0
 
-var base_fov: float = 75.0
+
 
 # =================================================
 # READY
@@ -127,8 +120,7 @@ func _ready() -> void:
 	floor_stop_on_slope = false
 	floor_block_on_wall = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	if camera_node:
-		base_fov = camera_node.fov
+
 
 # =================================================
 # MAIN LOOP
@@ -153,22 +145,22 @@ func _physics_process(delta: float) -> void:
 	
 	# Aligment
 	if is_wall_running:
-		_align_to_surface(delta, wall_normal)
+		_align_Board(delta, wall_normal,true)
 		up_direction = wall_normal
 		_apply_floor_stick(delta)
 	elif is_on_floor():
-		_align_to_surface(delta, get_floor_normal())
+		_align_Board(delta, get_floor_normal())
 		up_direction = get_floor_normal()
 		_apply_floor_stick(delta)
 	else:
-		_align_to_upright(delta)
+		_align_Board(delta)
 		up_direction = Vector3.UP
 	
 	# 3. Execution
 	if not is_charging_jump and not is_wall_running:
 		apply_floor_snap()
 	move_and_slide()
-	
+	Cam._update_camera_logic(delta,is_drifting)
 	# 4. Post-Move Logic
 	_maintain_wall_speed()
 	_apply_ramp_boost_on_leave()
@@ -284,10 +276,8 @@ func _update_speed(delta: float) -> void:
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
 		return
 	
-	var throttle = Input.get_action_strength("throttle") if InputMap.has_action("throttle") else Input.get_action_strength("ui_up")
-	if Input.is_key_pressed(KEY_W): throttle = 1.0
-	var brake = Input.get_action_strength("brake") if InputMap.has_action("brake") else Input.get_action_strength("ui_down")
-	if Input.is_key_pressed(KEY_S): brake = 1.0
+	var throttle = Input.get_action_strength("throttle") 
+	var brake = Input.get_action_strength("brake") 
 	
 	if brake > 0.0 && current_speed > 1.0:
 		PlayerSFX.play_brake()
@@ -341,8 +331,8 @@ func _apply_rotation(delta: float) -> void:
 
 func _apply_horizontal_movement() -> void:
 	if is_wall_running: return
-	var forward = -transform.basis.z
-	var horizontal_forward = Vector3(forward.x, 0.0, forward.z)
+	var forward:Vector3 = -transform.basis.z
+	var horizontal_forward:Vector3 = Vector3(forward.x, 0.0, forward.z)
 	if horizontal_forward.length_squared() > 0.01:
 		horizontal_forward = horizontal_forward.normalized()
 	else:
@@ -388,18 +378,9 @@ func _apply_ramp_boost_on_leave() -> void:
 
 # =================================================
 # CAMERA
-func _update_camera_logic(delta: float) -> void:
-	if !camera_node: return
-	camera_node.fov = lerp(camera_node.fov, drift_fov_target if is_drifting else base_fov, fov_lerp_speed * delta)
-	var target_quat = global_transform.basis.get_rotation_quaternion()
-	var current_quat = camera_node.global_transform.basis.get_rotation_quaternion()
-	camera_node.global_transform.basis = Basis(current_quat.slerp(target_quat, rotation_lerp_speed * delta))
-	var back_dir = camera_node.global_transform.basis.z
-	var target_cam_pos = global_position + (back_dir * 5.0)
-	camera_node.global_position = camera_node.global_position.lerp(target_cam_pos, move_lerp_speed * delta)
 
 # =================================================
-# VISUALS & AUDIO
+# VISUALS 
 func _update_board_visual(delta: float) -> void:
 	if !board_mesh: return
 	var lean_mult = drift_lean_multiplier if is_drifting else 1.0
@@ -433,21 +414,15 @@ func _reset_ik_positions() -> void:
 
 # =================================================
 # ALIGNMENTS
-func _align_to_surface(delta: float, target_normal: Vector3) -> void:
-	var target_basis = global_transform.basis
-	target_basis.y = target_normal
-	target_basis.x = -target_basis.z.cross(target_normal)
-	target_basis = target_basis.orthonormalized()
-	var align_speed = slope_alignment_speed
-	global_transform.basis = global_transform.basis.slerp(target_basis, align_speed * delta)
+func _align_Board(delta: float, target_normal: Vector3=Vector3.ZERO,UseTarget:bool= false) -> void:
+	if UseTarget:
+		global_transform.basis.y = target_normal
+		global_transform.basis.x = -global_transform.basis.z.cross(target_normal)
+	else:
+		if global_transform.basis.y.dot(Vector3.UP) > 0.99:
+			return
+		global_transform.basis.y = Vector3.UP
+		global_transform.basis.x = -global_transform.basis.z.cross(Vector3.UP)
 
-func _align_to_upright(delta: float) -> void:
-	var current_up = global_transform.basis.y
-	var target_up = Vector3.UP
-	if current_up.dot(target_up) > 0.99:
-		return
-	var target_basis = global_transform.basis
-	target_basis.y = target_up
-	target_basis.x = -target_basis.z.cross(target_up)
-	target_basis = target_basis.orthonormalized()
-	global_transform.basis = global_transform.basis.slerp(target_basis, air_alignment_speed * delta)
+	global_transform.basis = global_transform.basis.orthonormalized()
+	global_transform.basis = global_transform.basis.slerp(global_transform.basis, slope_alignment_speed * delta)

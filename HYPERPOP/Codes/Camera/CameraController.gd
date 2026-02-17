@@ -6,6 +6,16 @@ class_name CameraController
 @export var player : CharacterBody3D
 @export var target_height : float = 4
 
+# =================================================
+# CONFIG — CAMERA
+@export_category("Camera Logic")
+@export var camera_node : Camera3D
+@export_group("Drift FX Settings")
+@export var drift_fov_target : float = 48.0
+@export_group("General Camera Responsiveness")
+@export var move_lerp_speed : float = 1.0
+@export var rotation_lerp_speed : float = 6.0
+@export var fov_lerp_speed : float = 3.5
 
 # =================================================
 # DISTANCE SETTINGS
@@ -61,9 +71,11 @@ var roll := 0.0
 var current_distance := 4.5
 var current_height := 1.5
 var velocity_offset := Vector3.ZERO
-
+var base_fov: float = 75.0
 # =================================================
 func _ready():
+	if camera_node:
+		base_fov = camera_node.fov
 	top_level = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	if player:
@@ -190,3 +202,13 @@ func _update_camera(delta):
 	aligned_basis = aligned_basis.orthonormalized()
 
 	global_transform.basis = global_transform.basis.slerp(aligned_basis, rotation_smooth * delta)
+# =================================================
+func _update_camera_logic(delta: float,is_drifting:bool) -> void:
+	if !camera_node: return
+	camera_node.fov = lerp(camera_node.fov, drift_fov_target if is_drifting else base_fov, fov_lerp_speed * delta)
+	var target_quat = global_transform.basis.get_rotation_quaternion()
+	var current_quat = camera_node.global_transform.basis.get_rotation_quaternion()
+	camera_node.global_transform.basis = Basis(current_quat.slerp(target_quat, rotation_lerp_speed * delta))
+	var back_dir = camera_node.global_transform.basis.z
+	var target_cam_pos = global_position + (back_dir * 5.0)
+	camera_node.global_position = camera_node.global_position.lerp(target_cam_pos, move_lerp_speed * delta)
