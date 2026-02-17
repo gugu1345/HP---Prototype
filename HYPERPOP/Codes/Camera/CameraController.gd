@@ -3,120 +3,185 @@ class_name CameraController
 
 # =================================================
 # TARGET
-@export_category("Target")
 @export var player : CharacterBody3D
-@export var target_height_offset : float = 1.8 # Altura do foco (cabeça do player)
+@export var target_height : float = 4
+
 
 # =================================================
-# POSITIONING (Ajuste aqui para o feeling 1:1)
-@export_category("Positioning")
-@export var camera_offset : Vector3 = Vector3(0, 1.2, 0) # X: Lado, Y: Altura extra, Z: Frente/Trás
-@export var base_distance : float = 5.5 
-@export var speed_distance_mult : float = 2.0 # O quanto ela se afasta no boost
-@export var follow_lerp_speed : float = 10.0 # Quão rápido ela segue a posição
+# DISTANCE SETTINGS
+@export_category("Distance")
+@export var idle_distance : float = 14
+@export var normal_distance : float = 8
+@export var max_distance : float = 2
+@export var ramp_distance_boost : float = 0.6
+@export var distance_smooth : float = 4.0
 
 # =================================================
-# FOV (Sonic Riders Style)
-@export_category("Field of View")
-@export var fov_base : float = 80.0
-@export var fov_max : float = 115.0
-@export var fov_lerp_speed : float = 3.0
+# HEIGHT & RAMP RESPONSE
+@export_category("Height")
+@export var base_height : float = 4
+@export var ramp_height_adjust : float = 1.1
+@export var height_smooth : float = 6.0
 
 # =================================================
-# ROTATION & RESET
+# FOV 
+@export_category("FOV")
+@export var fov_idle : float = 72.0
+@export var fov_speed : float = 96.0
+@export var fov_boost : float = 104.0
+@export var fov_speed_lerp : float = 10.0
+
+# =================================================
+# LOOK & ROTATION
 @export_category("Rotation")
-@export var mouse_sensitivity : float = 0.002
-@export var joy_sensitivity : float = 3.0
-@export var reset_speed : float = 3.5 
-@export var rotation_smoothness : float = 12.0 # Suavização da rotação (Slerp)
+@export var mouse_sensitivity := 0.002
+@export var stick_sensitivity := 3.0
+@export var auto_align_speed := 6.0
+@export var rotation_smooth := 10.0
 
 # =================================================
-# STATE
-var yaw : float = 0.0
-var pitch : float = -0.15 # Começa levemente inclinada para baixo (Riders style)
-var manual_control_timer : float = 0.0
+# CINEMATIC FX
+@export_category("Cinematic")
+@export var look_ahead_strength : float = 3.0
+@export var turn_roll_strength : float = 0.35
+@export var drift_roll_multiplier : float = 1.8
+@export var inertia_strength : float = 6.0
 
 # =================================================
-func _ready() -> void:
-	top_level = true 
+# INTERNAL STATE
+var yaw := 0.0
+var pitch := -0.18
+var roll := 0.0
+
+var current_distance := 4.5
+var current_height := 1.5
+var velocity_offset := Vector3.ZERO
+
+# =================================================
+func _ready():
+	top_level = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	if player:
-		yaw = player.global_rotation.y
+		yaw = player.global_rotation.y + PI
 
 # =================================================
-func _unhandled_input(event: InputEvent) -> void:
+func _unhandled_input(event):
 	if event is InputEventMouseMotion:
 		yaw -= event.relative.x * mouse_sensitivity
 		pitch -= event.relative.y * mouse_sensitivity
-		_reset_manual_timer()
 
 # =================================================
-func _physics_process(delta: float) -> void:
-	if not player: return
+func _physics_process(delta):
+	if not player:
+		return
 
-	_handle_joy_input(delta)
-	_update_auto_reset(delta)
-	_apply_camera_logic(delta)
-
-# =================================================
-func _handle_joy_input(delta: float) -> void:
-	var joy_axis = Input.get_vector("camera_left", "camera_right", "camera_up", "camera_down")
-	if joy_axis.length() > 0.1:
-		yaw -= joy_axis.x * joy_sensitivity * delta
-		pitch -= joy_axis.y * joy_sensitivity * delta
-		_reset_manual_timer()
-
-func _reset_manual_timer():
-	manual_control_timer = 1.2 # Segundos até a câmera voltar a seguir o player
+	_handle_stick_input(delta)
+	_auto_align(delta)
+	_update_camera(delta)
 
 # =================================================
-func _update_auto_reset(delta: float) -> void:
-	pitch = clamp(pitch, -0.9, 0.4) # Limita para não girar demais verticalmente
-	
-	var player_speed = player.velocity.length()
-	
-	# Reset automático se o player estiver se movendo e não houver input manual
-	if player_speed > 0.5:
-		manual_control_timer -= delta
-		if manual_control_timer <= 0:
-			var target_yaw = player.global_rotation.y
-			yaw = lerp_angle(yaw, target_yaw, reset_speed * delta)
-			pitch = lerp(pitch, -0.2, reset_speed * delta) 
+func _handle_stick_input(delta):
+	var axis = Input.get_vector("camera_left","camera_right","camera_up","camera_down")
+	if axis.length() > 0.1:
+		yaw -= axis.x * stick_sensitivity * delta
+		pitch -= axis.y * stick_sensitivity * delta
 
 # =================================================
-func _apply_camera_logic(delta: float) -> void:
-	# 1. CÁLCULO DE VELOCIDADE (Proporção 0.0 a 1.0)
-	var speed_ratio = 0.0
-	if "current_speed" in player and "max_speed" in player:
-		speed_ratio = clamp(player.current_speed / player.max_speed, 0.0, 1.0)
+func _auto_align(delta):
+	var speed = player.velocity.length()
+
+	if speed > 1.0:
+		var target_yaw = player.global_rotation.y + PI
+		yaw = lerp_angle(yaw, target_yaw, auto_align_speed * delta)
+
+		var speed_ratio = clamp(speed / 40.0, 0, 1)
+		var target_pitch = -0.22 + speed_ratio * 0.12
+		pitch = lerp(pitch, target_pitch, auto_align_speed * delta)
+
+	pitch = clamp(pitch, -0.9, 0.45)
+
+# =================================================
+func _update_camera(delta):
+
+	var speed = player.velocity.length()
+	var speed_ratio = clamp(speed / 40.0, 0.0, 1.0)
+
+	# =========================================
+	# DYNAMIC DISTANCE
+	var target_dist = normal_distance
+
+	if speed < 1.0:
+		target_dist = idle_distance
 	else:
-		# Fallback caso as variáveis não existam no player
-		speed_ratio = clamp(player.velocity.length() / 20.0, 0.0, 1.0)
+		target_dist = lerp(normal_distance, max_distance, speed_ratio)
 
-	# 2. FOV DINÂMICO
-	var target_fov = fov_base + (speed_ratio * (fov_max - fov_base))
-	self.fov = lerp(self.fov, target_fov, fov_lerp_speed * delta)
+	# RAMP DETECTION
+	var up_dot = player.global_transform.basis.y.dot(Vector3.UP)
+	var ramp_factor = clamp(1.0 - up_dot, 0.0, 1.0)
 
-	# 3. ROTAÇÃO (Slerp para feeling flutuante/smooth)
-	var target_basis = Basis().rotated(Vector3.UP, yaw).rotated(Vector3.RIGHT, pitch)
-	global_transform.basis = global_transform.basis.slerp(target_basis, rotation_smoothness * delta)
+	target_dist += ramp_factor * ramp_distance_boost
 
-	# 4. POSIÇÃO FINAL
-	# No Riders, a câmera se afasta mais conforme a velocidade aumenta
-	var dynamic_dist = base_distance + (speed_ratio * speed_distance_mult)
-	
-	var back_direction = global_transform.basis.z
-	
-	# Posição ideal = Posição do Player + Offset de Altura + (Direção Traseira * Distancia)
-	# O camera_offset.y aqui permite subir a câmera sem mudar o ângulo do "LookAt"
-	var target_pos = player.global_position + (Vector3.UP * (target_height_offset + camera_offset.y)) 
-	target_pos += back_direction * dynamic_dist
-	target_pos += global_transform.basis.x * camera_offset.x # Offset lateral (se quiser estilo ombro)
+	current_distance = lerp(current_distance, target_dist, distance_smooth * delta)
 
-	# Suavização da posição
-	global_position = global_position.lerp(target_pos, follow_lerp_speed * delta)
+	# =========================================
+	# DYNAMIC HEIGHT
+	var target_height_pos = base_height + ramp_factor * ramp_height_adjust
+	current_height = lerp(current_height, target_height_pos, height_smooth * delta)
 
-	# 5. OLHAR PARA O PLAYER (Com offset levemente acima)
-	# O "look_ahead" dá a sensação de que a câmera antecipa a curva
-	var look_target = player.global_position + (Vector3.UP * target_height_offset)
+	# =========================================
+	# DYNAMIC FOV
+	var target_fov = lerp(fov_idle, fov_speed, speed_ratio)
+	if "dash_timer" in player and player.dash_timer > 0:
+		target_fov = fov_boost
+
+	fov = lerp(fov, target_fov, fov_speed_lerp * delta)
+
+	# =========================================
+	# CAMERA DIRECTION
+	var dir = Vector3(
+		sin(yaw) * cos(pitch),
+		sin(pitch),
+		cos(yaw) * cos(pitch)
+	).normalized()
+
+	# BASE POSITION
+	var target_pos = player.global_position + Vector3.UP * current_height
+	target_pos -= dir * current_distance
+
+	# =========================================
+	# INERTIA
+	var desired_offset = -player.velocity * 0.015
+	velocity_offset = velocity_offset.lerp(desired_offset, inertia_strength * delta)
+	target_pos += velocity_offset
+
+	global_position = global_position.lerp(target_pos, 8.0 * delta)
+
+	# =========================================
+	# LOOK AHEAD 
+	var look_target = player.global_position + Vector3.UP * target_height
+
+	if speed > 1:
+		look_target += player.velocity.normalized() * look_ahead_strength * speed_ratio
+
 	look_at(look_target)
+
+	# =========================================
+	# ROLL 
+	var turn_amount = wrapf((player.global_rotation.y + PI) - yaw, -PI, PI)
+	var drift_mult = drift_roll_multiplier if ("is_drifting" in player and player.is_drifting) else 1.0
+
+	var target_roll = -turn_amount * turn_roll_strength * drift_mult
+	roll = lerp(roll, target_roll, 6.0 * delta)
+	roll = clamp(roll, -0.5, 0.5)
+
+	var view_dir = (look_target - global_position).normalized()
+	global_transform.basis = global_transform.basis.rotated(view_dir, roll)
+
+	# =========================================
+	# ALIGN WITH SLOPES
+	var target_up = player.global_transform.basis.y
+	var aligned_basis = global_transform.basis
+	aligned_basis.y = aligned_basis.y.slerp(target_up, 10.0 * delta)
+	aligned_basis = aligned_basis.orthonormalized()
+
+	global_transform.basis = global_transform.basis.slerp(aligned_basis, rotation_smooth * delta)
