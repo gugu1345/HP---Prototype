@@ -11,22 +11,22 @@ class_name BoardController
 @export var air_drag: float = 35
 @export var rotation_speed: float = 1.5
 @export var rotation_smoothing: float = 12.0
-@export var max_velocity: float = 150.0 
+@export var max_velocity: float = 150.0
 
 # =================================================
 # CONFIG — JUMP & CHARGE
 @export_category("Jump")
 @export var min_jump_force: float = 12.0
 @export var max_jump_force: float = 35.0
-@export var jump_charge_drag: float = 0.3 
+@export var jump_charge_drag: float = 0.3
 
 # =================================================
 # CONFIG — PHYSICS
 @export_category("Physics")
 @export var gravity_mul: float = 5
-@export var stick_force: float = 120.0 
+@export var stick_force: float = 120.0
 @export var slope_alignment_speed: float = 22.0
-@export var snap_length: float = 0.8 
+@export var snap_length: float = 0.8
 
 # =================================================
 # CONFIG — SLOPE PHYSICS
@@ -55,8 +55,8 @@ var is_wall_attached: bool = false
 @export var air_pitch_return_speed: float = 4.0
 @export var dive_speed_gain: float = 55.0
 @export var pull_up_speed_loss: float = 30.0
-@export var air_lateral_force: float = 18.0 
-@export var air_stability_leveling: float = 3.5 
+@export var air_lateral_force: float = 18.0
+@export var air_stability_leveling: float = 3.5
 
 # =================================================
 # CONFIG — VISUALS & LEAN
@@ -115,10 +115,11 @@ var grounded_time: float = 0.0
 # CENTRALISED INPUT STATE — populated once per frame in _read_input()
 var inp_throttle: float = 0.0
 var inp_brake: float = 0.0
-var inp_steer: float = 0.0        # left(+) / right(-)
+var inp_steer: float = 0.0              # left(+) / right(-)
 var inp_drift: bool = false
 var inp_jump_held: bool = false
-var inp_pitch: float = 0.0        # throttle - brake (for air pitch)
+var inp_jump_just_released: bool = false
+var inp_pitch: float = 0.0              # throttle - brake (for air pitch)
 
 # =================================================
 # READY
@@ -134,11 +135,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
+	_update_jump_state()
 	_update_air_pitch(delta)
-	
+
 	if PlayerSFX:
 		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
-	
+
 	_update_drift(delta)
 	_update_speed(delta)
 
@@ -149,10 +151,9 @@ func _physics_process(delta: float) -> void:
 	_apply_horizontal_movement(delta)
 
 	_detect_wall_running()
-	
+
 	if was_wall_running and not is_wall_running and not is_wall_attached:
 		_on_wall_run_exit()
-
 
 	if is_wall_running:
 		_align_Board(delta, wall_normal, true)
@@ -190,7 +191,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 	elif is_charging_jump:
 		move_and_slide()
-		
+
 	if Cam:
 		Cam._update_camera_logic(delta, is_drifting)
 
@@ -199,32 +200,36 @@ func _physics_process(delta: float) -> void:
 	_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
 	_update_board_visual(delta)
-	
+
 	if PlayerSFX:
 		PlayerSFX._update_engine_audio(current_speed, max_speed)
 
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
 
-
 # =================================================
-# INPUT — single source of truth
+# INPUT — single source of truth, pure reads only
 func _read_input(delta: float) -> void:
-	inp_throttle  = Input.get_action_strength("throttle")
-	inp_brake     = Input.get_action_strength("brake")
-	inp_steer     = Input.get_action_strength("left") - Input.get_action_strength("right")
-	inp_drift     = Input.is_action_pressed("drift")
-	inp_jump_held = Input.is_action_pressed("Jump")
-	inp_pitch     = inp_throttle - inp_brake
+	inp_throttle           = Input.get_action_strength("throttle")
+	inp_brake              = Input.get_action_strength("brake")
+	inp_steer              = Input.get_action_strength("left") - Input.get_action_strength("right")
+	inp_drift              = Input.is_action_pressed("drift")
+	inp_jump_held          = Input.is_action_pressed("Jump")
+	inp_jump_just_released = Input.is_action_just_released("Jump")
+	inp_pitch              = inp_throttle - inp_brake
 
 	input_dir.x = inp_steer
 	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
 
+# =================================================
+# JUMP STATE — separate from raw input reads
+func _update_jump_state() -> void:
 	var can_jump = is_on_floor()
 
-	if is_charging_jump and not inp_jump_held:
+	if is_charging_jump and inp_jump_just_released:
 		_execute_jump()
 		is_charging_jump = false
+		return
 
 	if can_jump and inp_jump_held:
 		is_charging_jump = true
@@ -245,10 +250,10 @@ func _update_air_pitch(delta: float) -> void:
 func _execute_jump() -> void:
 	var charge_val = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
 	var force = lerp(min_jump_force, max_jump_force, charge_val)
-	
+
 	floor_snap_length = 0.0
 	air_spin_timer = 0.0
-	
+
 	if is_wall_running && wall_normal != Vector3.ZERO:
 		ChangeVelocity(wall_normal, force * 1.4)
 		ChangeVelocity(Vector3.UP, force * 0.5)
@@ -256,7 +261,7 @@ func _execute_jump() -> void:
 		_on_wall_run_exit()
 	else:
 		ChangeVelocity(global_transform.basis.y, force)
-		
+
 	if PlayerSFX:
 		PlayerSFX.play_jump_launch()
 		PlayerSFX.current_jump_charge = 0.0
@@ -274,9 +279,9 @@ func _update_drift(delta: float) -> void:
 		drift_charge = 0.0
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
 		return
-		
+
 	var drift_input = inp_drift and abs(input_dir.x) > 0.1
-	
+
 	if is_drifting and not drift_input:
 		if drift_charge >= 1.0:
 			dash_velocity = current_speed + drift_dash_force
@@ -284,9 +289,9 @@ func _update_drift(delta: float) -> void:
 			if PlayerSFX: PlayerSFX.play_dash()
 		drift_charge = 0.0
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
-		
+
 	is_drifting = drift_input
-	
+
 	if is_drifting:
 		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
 		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
@@ -322,21 +327,21 @@ func _update_speed(delta: float) -> void:
 # PHYSICS & ROTATION
 func _apply_rotation(delta: float) -> void:
 	var turn_scale = 1.0
-	
+
 	if is_charging_jump:
 		turn_scale = 0.5
 	elif is_drifting:
 		turn_scale *= drift_turn_multiplier
 	elif !is_on_floor() && !is_on_wall():
 		turn_scale = 0.1 if air_spin_timer < air_rotation_delay else air_rotation_multiplier
-		
+
 	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
 
 func _apply_horizontal_movement(delta: float) -> void:
 	if is_wall_running: return
 	var forward = -transform.basis.z
 	var right = transform.basis.x
-	
+
 	if is_on_floor():
 		var horizontal_fwd = Vector3(forward.x, 0.0, forward.z).normalized() if Vector3(forward.x, 0.0, forward.z).length() > 0.01 else forward
 		velocity.x = horizontal_fwd.x * current_speed
