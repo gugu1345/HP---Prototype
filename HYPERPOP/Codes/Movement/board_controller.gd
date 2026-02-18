@@ -49,7 +49,6 @@ var loco_state: LocomotionState = LocomotionState.GROUNDED
 # =================================================
 # CONFIG — WALL RUNNING
 @export_category("Wall Running")
-@export var enable_wall_running: bool = true
 @export var wall_run_min_speed: float = 25.0
 @export var wall_stick_force: float = 180.0
 @export var wall_gravity_mul: float = 0.35
@@ -102,6 +101,13 @@ var is_wall_attached: bool = false
 @export var PlayerSFX: PlaySoundsFX
 
 # =================================================
+# DEBUG
+@export_category("Debug")
+@export var debug_enabled: bool = true
+@export var debug_console_log: bool = false          # prints key events to Output
+var _debug_console_throttle: float = 0.0             # limits console spam to once per second
+
+# =================================================
 # STATE
 var current_speed: float = 0.0
 var smoothed_input_x: float = 0.0
@@ -142,6 +148,22 @@ func _ready() -> void:
 	floor_block_on_wall = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
+	if debug_enabled:
+		# Auto-create a label if none was assigned in the Inspector
+		var canvas := CanvasLayer.new()
+		canvas.name = "DebugCanvas"
+		add_child(canvas)
+		var label := RichTextLabel.new()
+		label.name = "DebugLabel"
+		label.bbcode_enabled = true
+		label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		label.position = Vector2(10, 10)
+		label.size = Vector2(420, 320)
+		# Semi-transparent background via modulate — style as needed
+		label.add_theme_color_override("default_color", Color(0.9, 1.0, 0.9))
+		label.add_theme_font_size_override("normal_font_size", 14)
+		_dbg_log("DEBUG: auto-created on-screen label")
+
 # =================================================
 # MAIN LOOP
 func _physics_process(delta: float) -> void:
@@ -170,16 +192,15 @@ func _physics_process(delta: float) -> void:
 
 	if was_wall_running and not is_wall_running and not is_wall_attached:
 		_on_wall_run_exit()
+		_dbg_log("EVENT: Wall run EXIT — speed: %.1f" % current_speed)
 
 	# 3. Per-state surface handling
 	match loco_state:
 		LocomotionState.WALL_RUNNING:
 			_align_Board(delta, wall_normal, true)
-			up_direction = wall_normal
 			_apply_floor_stick(delta)
 
 		LocomotionState.WALL_ATTACHED:
-			up_direction = Vector3.UP
 			_align_Board(delta)
 			velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
 			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
@@ -187,34 +208,27 @@ func _physics_process(delta: float) -> void:
 			ChangeVelocity(-wall_normal, wall_stick_force * delta)
 
 		LocomotionState.GROUNDED, LocomotionState.DRIFTING, LocomotionState.JUMP_CHARGING:
-			_align_Board(delta, get_floor_normal(), true)
-			last_surface_normal = get_floor_normal()
+			_align_Board(delta,Vector3.UP, true)
+			last_surface_normal = Vector3.UP
 			air_time = 0.0
 			if grounded_time >= 3.5:
 				last_ground_position = global_position
 				grounded_time = 0.0
 			else:
 				grounded_time += delta
-			up_direction = get_floor_normal()
 			_apply_floor_stick(delta)
 
 		LocomotionState.AIRBORNE:
 			_align_Board(delta)
-			up_direction = Vector3.UP
 			grounded_time = 0.0
 			air_time += delta
 			if air_time >= 20.0 and last_ground_position != Vector3.ZERO:
 				_teleport_to_last_ground()
+				_dbg_log("EVENT: Teleported to last ground pos (air_time >= 20s)")
 
-	# 4. Move execution
-	match loco_state:
-		LocomotionState.JUMP_CHARGING:
-			move_and_slide()
-		LocomotionState.WALL_RUNNING:
-			pass  # wall running skips both snap and slide
-		_:
-			apply_floor_snap()
-			move_and_slide()
+
+	apply_floor_snap()
+	move_and_slide()
 
 	if Cam:
 		Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
@@ -230,6 +244,10 @@ func _physics_process(delta: float) -> void:
 
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
+
+	# Update debug display every frame (label) and throttled console
+	if debug_enabled:
+		_update_debug(delta)
 
 # =================================================
 # LOCOMOTION STATE RESOLVER
@@ -268,6 +286,7 @@ func _update_jump_state() -> void:
 	var can_jump = is_on_floor()
 
 	if is_charging_jump and inp_jump_just_released:
+		_dbg_log("EVENT: Jump launched — charge: %.2f" % (PlayerSFX.current_jump_charge if PlayerSFX else 1.0))
 		_execute_jump()
 		is_charging_jump = false
 		return
@@ -300,8 +319,10 @@ func _execute_jump() -> void:
 		ChangeVelocity(Vector3.UP, force * 0.5)
 		is_wall_running = false
 		_on_wall_run_exit()
+		_dbg_log("EVENT: Wall jump — force: %.1f, wall_normal: %s" % [force, wall_normal])
 	else:
 		ChangeVelocity(global_transform.basis.y, force)
+		_dbg_log("EVENT: Standard jump — force: %.1f" % force)
 
 	if PlayerSFX:
 		PlayerSFX.play_jump_launch()
@@ -310,6 +331,7 @@ func _execute_jump() -> void:
 func _handle_landing(delta: float) -> void:
 	if !is_on_floor(): return
 	if !was_on_floor && air_time > 0.15:
+		_dbg_log("EVENT: Landed — air_time: %.2fs, speed: %.1f" % [air_time, current_speed])
 		if PlayerSFX: PlayerSFX.play_land()
 
 # =================================================
@@ -327,6 +349,7 @@ func _update_drift(delta: float) -> void:
 		if drift_charge >= 1.0:
 			dash_velocity = current_speed + drift_dash_force
 			dash_timer = drift_dash_duration
+			_dbg_log("EVENT: Drift DASH released — dash_velocity: %.1f" % dash_velocity)
 			if PlayerSFX: PlayerSFX.play_dash()
 		drift_charge = 0.0
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
@@ -425,7 +448,7 @@ func ChangeVelocity(vet3: Vector3, force: float) -> void:
 func _detect_wall_running() -> void:
 	is_wall_running = false
 	is_wall_attached = false
-	if !enable_wall_running || is_on_floor():
+	if is_on_floor():
 		return
 
 	for i in get_slide_collision_count():
@@ -433,8 +456,12 @@ func _detect_wall_running() -> void:
 		if abs(n.dot(Vector3.UP)) < 0.3:
 			wall_normal = n
 			if current_speed >= wall_run_min_speed:
+				if not was_wall_running:
+					_dbg_log("EVENT: Wall run START — speed: %.1f, normal: %s" % [current_speed, wall_normal])
 				is_wall_running = true
 			else:
+				if not is_wall_attached:
+					_dbg_log("EVENT: Wall ATTACH (too slow) — speed: %.1f" % current_speed)
 				is_wall_attached = true
 			break
 
@@ -448,6 +475,7 @@ func _apply_ramp_boost_on_leave() -> void:
 		var angle_factor = 1.0 - last_surface_normal.dot(Vector3.UP)
 		if angle_factor > 0.15:
 			ChangeVelocity(velocity.normalized(), slope_alignment_speed * angle_factor * get_physics_process_delta_time())
+			_dbg_log("EVENT: Ramp boost — angle_factor: %.2f, speed: %.1f" % [angle_factor, current_speed])
 
 # =================================================
 # VISUALS
@@ -490,5 +518,29 @@ func _teleport_to_last_ground() -> void:
 
 func _on_wall_run_exit() -> void:
 	last_surface_normal = Vector3.UP
-	up_direction = Vector3.UP
 	if velocity.y < 0: velocity.y *= 0.5
+
+# =================================================
+# DEBUG HELPERS
+func _dbg_log(msg: String) -> void:
+	if debug_enabled and debug_console_log:
+		print("[BoardController] ", msg)
+
+func _update_debug(delta: float) -> void:
+	_debug_console_throttle -= delta
+	# --- Throttled console output (once per second) ---
+	if debug_console_log and _debug_console_throttle <= 0.0:
+		_debug_console_throttle = 1.0
+		print("[Board] state=%-14s speed=%5.1f air=%.2fs wall_run=%s drift=%s drift_charge=%.0f%%" % [
+			LocomotionState.keys()[loco_state],
+			current_speed,
+			air_time,
+			"Y" if is_wall_running else "N",
+			"Y" if is_drifting else "N",
+			drift_charge * 100.0
+		])
+
+# Builds a simple ASCII progress bar like: [████░░░░░░]
+func _make_bar(value: float, max_val: float, width: int) -> String:
+	var filled := int(clamp(value / max_val, 0.0, 1.0) * width)
+	return "[" + "█".repeat(filled) + "░".repeat(width - filled) + "]"
