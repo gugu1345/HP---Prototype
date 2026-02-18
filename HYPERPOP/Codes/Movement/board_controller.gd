@@ -46,7 +46,7 @@ class_name BoardController
 # CONFIG — AIR CONTROLS
 @export_category("Air Controls")
 @export var air_rotation_multiplier: float = 2.5
-@export var air_rotation_delay: float = 0.15 # Tempo em segundos antes de poder girar no ar
+@export var air_rotation_delay: float = 0.15
 @export var air_pitch_max_angle: float = 50.0
 @export var air_pitch_responsiveness: float = 10.0
 @export var air_pitch_return_speed: float = 4.0
@@ -94,7 +94,7 @@ var smoothed_input_x: float = 0.0
 var was_on_floor: bool = true
 var last_surface_normal: Vector3 = Vector3.UP
 var air_time: float = 0.0
-var air_spin_timer: float = 0.0 # Timer para o delay de rotação
+var air_spin_timer: float = 0.0
 var is_charging_jump: bool = false
 var current_tilt: float = 0.0
 var is_drifting: bool = false
@@ -105,6 +105,15 @@ var is_wall_running: bool = false
 var was_wall_running: bool = false
 var wall_normal: Vector3 = Vector3.ZERO
 var current_air_pitch: float = 0.0
+
+# =================================================
+# CENTRALISED INPUT STATE — populated once per frame in _read_input()
+var inp_throttle: float = 0.0
+var inp_brake: float = 0.0
+var inp_steer: float = 0.0        # left(+) / right(-)
+var inp_drift: bool = false
+var inp_jump_held: bool = false
+var inp_pitch: float = 0.0        # throttle - brake  (for air pitch)
 
 # =================================================
 # READY
@@ -120,7 +129,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
-	_update_air_pitch(delta) 
+	_update_air_pitch(delta)
 	
 	if PlayerSFX:
 		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
@@ -148,11 +157,11 @@ func _physics_process(delta: float) -> void:
 		_align_Board(delta, get_floor_normal(), true)
 		up_direction = get_floor_normal()
 		_apply_floor_stick(delta)
-		air_spin_timer = 0.0 # Reseta timer no chão
+		air_spin_timer = 0.0
 	else:
 		_align_Board_Air(delta)
 		up_direction = Vector3.UP
-		air_spin_timer += delta # Acumula tempo no ar
+		air_spin_timer += delta
 
 	# 3. Execution
 	if not is_charging_jump and not is_wall_running:
@@ -182,46 +191,52 @@ func _physics_process(delta: float) -> void:
 		air_time += delta
 
 # =================================================
+# INPUT — single source of truth
+func _read_input(delta: float) -> void:
+	# Raw axes
+	inp_throttle = Input.get_action_strength("throttle")
+	inp_brake    = Input.get_action_strength("brake")
+	inp_steer    = Input.get_action_strength("left") - Input.get_action_strength("right")
+	inp_drift    = Input.is_action_pressed("drift")
+	inp_jump_held = Input.is_action_pressed("Jump")
+	inp_pitch    = inp_throttle - inp_brake
+
+	# Keyboard fallbacks
+	inp_pitch = inp_throttle - inp_brake
+
+	# Steer smoothing
+	input_dir.x = inp_steer
+	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
+
+	# Jump charge / execute logic
+	var can_jump = is_on_floor() or is_wall_running
+
+	if is_charging_jump and not inp_jump_held:
+		_execute_jump()
+		is_charging_jump = false
+
+	if can_jump and inp_jump_held:
+		is_charging_jump = true
+	elif not inp_jump_held:
+		is_charging_jump = false
+
+# =================================================
 # AIR CONTROLS
 func _update_air_pitch(delta: float) -> void:
-	var throttle = Input.get_action_strength("throttle") if InputMap.has_action("throttle") else Input.get_action_strength("ui_up")
-	if Input.is_key_pressed(KEY_W): throttle = 1.0
-	
-	var brake = Input.get_action_strength("brake") if InputMap.has_action("brake") else Input.get_action_strength("ui_down")
-	if Input.is_key_pressed(KEY_S): brake = 1.0
-	
-	var pitch_input = throttle - brake
-	
 	if !is_on_floor() && !is_wall_running:
-		var target_pitch = pitch_input * deg_to_rad(air_pitch_max_angle)
+		var target_pitch = inp_pitch * deg_to_rad(air_pitch_max_angle)
 		current_air_pitch = lerp(current_air_pitch, target_pitch, air_pitch_responsiveness * delta)
 	else:
 		current_air_pitch = lerp(current_air_pitch, 0.0, air_pitch_return_speed * delta)
 
 # =================================================
-# INPUT & JUMP
-func _read_input(delta: float) -> void:
-	input_dir.x = Input.get_action_strength("left") - Input.get_action_strength("right")
-	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
-	
-	var can_jump = is_on_floor() or is_wall_running
-	var jump_button_held = Input.is_action_pressed("Jump")
-	
-	if is_charging_jump and not jump_button_held:
-		_execute_jump()
-		is_charging_jump = false 
-	
-	if can_jump and jump_button_held:
-		is_charging_jump = true
-	elif not jump_button_held:
-		is_charging_jump = false
-
+# JUMP
 func _execute_jump() -> void:
 	var charge_val = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
 	var force = lerp(min_jump_force, max_jump_force, charge_val)
 	
 	floor_snap_length = 0.0
-	air_spin_timer = 0.0 # Reseta o delay de giro ao iniciar o pulo
+	air_spin_timer = 0.0
 	
 	if is_wall_running && wall_normal != Vector3.ZERO:
 		velocity += wall_normal * force * 1.4
@@ -250,15 +265,14 @@ func _update_drift(delta: float) -> void:
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
 		return
 		
-	var drift_input = Input.is_action_pressed("drift") and abs(input_dir.x) > 0.1
+	var drift_input = inp_drift and abs(input_dir.x) > 0.1
 	
 	if is_drifting and not drift_input:
 		if drift_charge >= 1.0:
 			dash_velocity = current_speed + drift_dash_force
 			dash_timer = drift_dash_duration
 			if PlayerSFX: PlayerSFX.play_dash()
-		
-		drift_charge = 0.0 
+		drift_charge = 0.0
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
 		
 	is_drifting = drift_input
@@ -277,19 +291,16 @@ func _update_speed(delta: float) -> void:
 	elif is_charging_jump:
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
 	else:
-		var throttle = Input.get_action_strength("throttle")
-		var brake = Input.get_action_strength("brake")
-		
 		if is_on_floor():
-			if throttle > 0:
+			if inp_throttle > 0:
 				current_speed = move_toward(current_speed, max_speed, acceleration * delta)
-			elif brake > 0:
+			elif inp_brake > 0:
 				current_speed = move_toward(current_speed, 0.0, braking * delta)
 			else:
 				current_speed = move_toward(current_speed, 0.0, friction * delta)
 		else:
 			current_speed = move_toward(current_speed, 0.0, air_drag * delta)
-			var dive_factor = sin(current_air_pitch) 
+			var dive_factor = sin(current_air_pitch)
 			if dive_factor > 0:
 				current_speed += dive_speed_gain * dive_factor * delta
 			else:
@@ -298,21 +309,16 @@ func _update_speed(delta: float) -> void:
 	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 # =================================================
-# PHYSICS & ROTATION (AIR DELAY IMPLEMENTADO)
+# PHYSICS & ROTATION
 func _apply_rotation(delta: float) -> void:
 	var turn_scale = 1.0
 	
-	if is_charging_jump: 
+	if is_charging_jump:
 		turn_scale = 0.5
-	elif is_drifting: 
+	elif is_drifting:
 		turn_scale *= drift_turn_multiplier
 	elif !is_on_floor() && !is_wall_running:
-		# LÓGICA DE DELAY NO AR:
-		# Se o tempo no ar for menor que o delay, o giro é quase nulo (0.1 de força)
-		if air_spin_timer < air_rotation_delay:
-			turn_scale = 0.1 
-		else:
-			turn_scale *= air_rotation_multiplier
+		turn_scale = 0.1 if air_spin_timer < air_rotation_delay else air_rotation_multiplier
 		
 	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
 
