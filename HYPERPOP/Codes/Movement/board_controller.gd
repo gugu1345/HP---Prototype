@@ -240,7 +240,7 @@ func _update_jump_state() -> void:
 # AIR CONTROLS
 func _update_air_pitch(delta: float) -> void:
 	if !is_on_floor() && !is_on_wall():
-		var target_pitch = inp_pitch * deg_to_rad(air_pitch_max_angle)
+		var target_pitch:float  = inp_pitch * deg_to_rad(air_pitch_max_angle)
 		current_air_pitch = lerp(current_air_pitch, target_pitch, air_pitch_responsiveness * delta)
 	else:
 		current_air_pitch = lerp(current_air_pitch, 0.0, air_pitch_return_speed * delta)
@@ -248,8 +248,8 @@ func _update_air_pitch(delta: float) -> void:
 # =================================================
 # JUMP
 func _execute_jump() -> void:
-	var charge_val = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
-	var force = lerp(min_jump_force, max_jump_force, charge_val)
+	var charge_val:float = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
+	var force:float  = lerp(min_jump_force, max_jump_force, charge_val)
 
 	floor_snap_length = 0.0
 	air_spin_timer = 0.0
@@ -315,7 +315,7 @@ func _update_speed(delta: float) -> void:
 				current_speed = move_toward(current_speed, 0.0, friction * delta)
 		else:
 			current_speed = move_toward(current_speed, 0.0, air_drag * delta)
-			var dive_factor = sin(current_air_pitch)
+			var dive_factor:float = sin(current_air_pitch)
 			if dive_factor > 0:
 				current_speed += dive_speed_gain * dive_factor * delta
 			else:
@@ -339,31 +339,31 @@ func _apply_rotation(delta: float) -> void:
 
 func _apply_horizontal_movement(delta: float) -> void:
 	if is_wall_running: return
-	var forward = -transform.basis.z
-	var right = transform.basis.x
+	var forward:Vector3 = -transform.basis.z
+	var right:Vector3 = transform.basis.x
 
 	if is_on_floor():
-		var horizontal_fwd = Vector3(forward.x, 0.0, forward.z).normalized() if Vector3(forward.x, 0.0, forward.z).length() > 0.01 else forward
+		var horizontal_fwd:Vector3 = Vector3(forward.x, 0.0, forward.z).normalized() if Vector3(forward.x, 0.0, forward.z).length() > 0.01 else forward
 		velocity.x = horizontal_fwd.x * current_speed
 		velocity.z = horizontal_fwd.z * current_speed
 	else:
-		var lateral_move = -smoothed_input_x * air_lateral_force
-		var target_vel = (forward * current_speed) + (right * lateral_move)
+		var lateral_move:float = -smoothed_input_x * air_lateral_force
+		var target_vel:Vector3 = (forward * current_speed) + (right * lateral_move)
 		velocity.x = move_toward(velocity.x, target_vel.x, 30.0 * delta)
 		velocity.z = move_toward(velocity.z, target_vel.z, 30.0 * delta)
 
 func _apply_slope_momentum(delta: float) -> void:
 	if !is_on_floor(): return
-	var normal = get_floor_normal()
-	var slope = 1.0 - normal.dot(Vector3.UP)
+	var normal:Vector3  = get_floor_normal()
+	var slope:float  = 1.0 - normal.dot(Vector3.UP)
 	if slope < 0.02: return
-	var downhill = Vector3.DOWN.slide(normal).normalized()
-	var alignment = downhill.dot(-board_mesh.global_transform.basis.z)
+	var downhill:Vector3 = Vector3.DOWN.slide(normal).normalized()
+	var alignment:float = downhill.dot(-board_mesh.global_transform.basis.z)
 	current_speed += alignment * slope_accel_strength * slope * delta
 	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 func _apply_surface_gravity(delta: float) -> void:
-	var g = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
+	var g:float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
 	if is_wall_running: g *= wall_gravity_mul
 	if is_on_floor() || get_slide_collision_count() > 0:
 		ChangeVelocity(-last_surface_normal, g * delta)
@@ -372,8 +372,8 @@ func _apply_surface_gravity(delta: float) -> void:
 
 func _apply_floor_stick(delta: float) -> void:
 	if !(is_on_floor()): return
-	var stick_normal = wall_normal if is_wall_running else last_surface_normal
-	var stick = wall_stick_force if is_wall_running else stick_force
+	var stick_normal:Vector3 = wall_normal if is_wall_running else last_surface_normal
+	var stick:float = wall_stick_force if is_wall_running else stick_force
 	ChangeVelocity(-stick_normal, stick * delta)
 
 func ChangeVelocity(vet3: Vector3, force: float) -> void:
@@ -412,26 +412,26 @@ func _apply_ramp_boost_on_leave() -> void:
 # VISUALS
 func _update_board_visual(delta: float) -> void:
 	if !board_mesh: return
-	var lean_mult = drift_lean_multiplier if is_drifting else 1.0
-	var speed_percent = clamp(current_speed / max_speed, 0.2, 1.2)
-	var target_tilt = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
+	var lean_mult:float = drift_lean_multiplier if is_drifting else 1.0
+	var speed_percent:float = clamp(current_speed / max_speed, 0.2, 1.2)
+	var target_tilt:float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
 	var visual_basis = global_transform.basis
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	var total_pitch = (crouch_tilt_amount if is_charging_jump else 0.0) + current_air_pitch
+	var total_pitch:float = (crouch_tilt_amount if is_charging_jump else 0.0) + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
 # =================================================
 # ALIGNMENTS
 func _align_Board(delta: float, target_normal: Vector3 = Vector3.ZERO, use_target: bool = false) -> void:
-	var curr_fwd = -global_transform.basis.z
+	var curr_fwd:Vector3 = -global_transform.basis.z
 	if use_target:
 		global_transform.basis.y = target_normal
 		global_transform.basis.x = curr_fwd.cross(target_normal).normalized()
 		global_transform.basis.z = global_transform.basis.x.cross(target_normal).normalized()
 	else:
-		var current_up = global_transform.basis.y
+		var current_up:Vector3 = global_transform.basis.y
 		if current_up.dot(Vector3.UP) < 0.99:
 			var next_up = current_up.lerp(Vector3.UP, air_stability_leveling * delta).normalized()
 			global_transform.basis.y = next_up
