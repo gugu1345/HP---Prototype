@@ -2,6 +2,18 @@ extends CharacterBody3D
 class_name BoardController
 
 # =================================================
+# LOCOMOTION STATE ENUM
+enum LocomotionState {
+	GROUNDED,       # on floor, normal movement
+	DRIFTING,       # on floor, drifting
+	JUMP_CHARGING,  # on floor, charging a jump
+	AIRBORNE,       # in the air
+	WALL_RUNNING,   # running along a wall
+	WALL_ATTACHED   # too slow to wall-run; sliding down
+}
+var loco_state: LocomotionState = LocomotionState.GROUNDED
+
+# =================================================
 # CONFIG — MOTION
 @export_category("Motion")
 @export var max_speed: float = 105.0
@@ -92,7 +104,6 @@ var is_wall_attached: bool = false
 # =================================================
 # STATE
 var current_speed: float = 0.0
-var input_dir: Vector2 = Vector2.ZERO
 var smoothed_input_x: float = 0.0
 var was_on_floor: bool = true
 var last_surface_normal: Vector3 = Vector3.UP
@@ -110,16 +121,17 @@ var wall_normal: Vector3 = Vector3.ZERO
 var current_air_pitch: float = 0.0
 var last_ground_position: Vector3 = Vector3.ZERO
 var grounded_time: float = 0.0
+var moveDir: Vector3
 
 # =================================================
 # CENTRALISED INPUT STATE — populated once per frame in _read_input()
 var inp_throttle: float = 0.0
 var inp_brake: float = 0.0
-var inp_steer: float = 0.0              # left(+) / right(-)
+var inp_steer: float = 0.0
 var inp_drift: bool = false
 var inp_jump_held: bool = false
 var inp_jump_just_released: bool = false
-var inp_pitch: float = 0.0              # throttle - brake (for air pitch)
+var inp_pitch: float = 0.0
 
 # =================================================
 # READY
@@ -135,67 +147,79 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
-	_update_jump_state()
-	_update_air_pitch(delta)
-
 	if PlayerSFX:
 		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
 
 	_update_drift(delta)
 	_update_speed(delta)
+	_update_jump_state()
+	_update_air_pitch(delta)
+
+	# Resolve locomotion state before physics branching
+	_update_loco_state()
 
 	# 2. Physics & Momentum
 	_apply_slope_momentum(delta)
 	_apply_surface_gravity(delta)
 	_apply_rotation(delta)
+	moveDir *= current_speed
 	_apply_horizontal_movement(delta)
 
 	_detect_wall_running()
+	_update_loco_state()  # re-resolve after wall detection
 
 	if was_wall_running and not is_wall_running and not is_wall_attached:
 		_on_wall_run_exit()
 
-	if is_wall_running:
-		_align_Board(delta, wall_normal, true)
-		up_direction = wall_normal
-		_apply_floor_stick(delta)
-	elif is_wall_attached:
-		up_direction = Vector3.UP
-		_align_Board(delta)
-		velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
-		velocity.y = move_toward(velocity.y, -wall_attach_slide_speed, 10.0 * delta)
-		ChangeVelocity(-wall_normal, wall_stick_force * delta)
-	elif is_on_floor():
-		_align_Board(delta, get_floor_normal(), true)
-		last_surface_normal = get_floor_normal()
-		air_time = 0.0
-		if grounded_time >= 3.5:
-			last_ground_position = global_position
-			grounded_time = 0.0
-		else:
-			grounded_time += delta
-		up_direction = get_floor_normal()
-		_apply_floor_stick(delta)
-	else:
-		_align_Board(delta)
-		up_direction = Vector3.UP
-		grounded_time = 0.0
-		air_time += delta
-		if air_time >= 20.0 and last_ground_position != Vector3.ZERO:
-			_teleport_to_last_ground()
+	# 3. Per-state surface handling
+	match loco_state:
+		LocomotionState.WALL_RUNNING:
+			_align_Board(delta, wall_normal, true)
+			up_direction = wall_normal
+			_apply_floor_stick(delta)
 
-	# 3. Execution
-	if not is_charging_jump and not is_wall_running:
-		apply_floor_snap()
-		move_and_slide()
-	elif is_charging_jump:
-		move_and_slide()
+		LocomotionState.WALL_ATTACHED:
+			up_direction = Vector3.UP
+			_align_Board(delta)
+			velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+			velocity.y = move_toward(velocity.y, -wall_attach_slide_speed, 10.0 * delta)
+			ChangeVelocity(-wall_normal, wall_stick_force * delta)
+
+		LocomotionState.GROUNDED, LocomotionState.DRIFTING, LocomotionState.JUMP_CHARGING:
+			_align_Board(delta, get_floor_normal(), true)
+			last_surface_normal = get_floor_normal()
+			air_time = 0.0
+			if grounded_time >= 3.5:
+				last_ground_position = global_position
+				grounded_time = 0.0
+			else:
+				grounded_time += delta
+			up_direction = get_floor_normal()
+			_apply_floor_stick(delta)
+
+		LocomotionState.AIRBORNE:
+			_align_Board(delta)
+			up_direction = Vector3.UP
+			grounded_time = 0.0
+			air_time += delta
+			if air_time >= 20.0 and last_ground_position != Vector3.ZERO:
+				_teleport_to_last_ground()
+
+	# 4. Move execution
+	match loco_state:
+		LocomotionState.JUMP_CHARGING:
+			move_and_slide()
+		LocomotionState.WALL_RUNNING:
+			pass  # wall running skips both snap and slide
+		_:
+			apply_floor_snap()
+			move_and_slide()
 
 	if Cam:
-		Cam._update_camera_logic(delta, is_drifting)
+		Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
 
-	# 4. Post-Move Logic
+	# 5. Post-move logic
 	_maintain_wall_speed()
 	_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
@@ -208,6 +232,23 @@ func _physics_process(delta: float) -> void:
 	was_wall_running = is_wall_running
 
 # =================================================
+# LOCOMOTION STATE RESOLVER
+func _update_loco_state() -> void:
+	if is_wall_running:
+		loco_state = LocomotionState.WALL_RUNNING
+	elif is_wall_attached:
+		loco_state = LocomotionState.WALL_ATTACHED
+	elif is_on_floor():
+		if is_charging_jump:
+			loco_state = LocomotionState.JUMP_CHARGING
+		elif is_drifting:
+			loco_state = LocomotionState.DRIFTING
+		else:
+			loco_state = LocomotionState.GROUNDED
+	else:
+		loco_state = LocomotionState.AIRBORNE
+
+# =================================================
 # INPUT — single source of truth, pure reads only
 func _read_input(delta: float) -> void:
 	inp_throttle           = Input.get_action_strength("throttle")
@@ -218,11 +259,11 @@ func _read_input(delta: float) -> void:
 	inp_jump_just_released = Input.is_action_just_released("Jump")
 	inp_pitch              = inp_throttle - inp_brake
 
-	input_dir.x = inp_steer
-	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
+	smoothed_input_x = lerp(smoothed_input_x, inp_steer, rotation_smoothing * delta)
+	moveDir = -global_transform.basis.z
 
 # =================================================
-# JUMP STATE — separate from raw input reads
+# JUMP STATE
 func _update_jump_state() -> void:
 	var can_jump = is_on_floor()
 
@@ -240,7 +281,7 @@ func _update_jump_state() -> void:
 # AIR CONTROLS
 func _update_air_pitch(delta: float) -> void:
 	if !is_on_floor() && !is_on_wall():
-		var target_pitch:float  = inp_pitch * deg_to_rad(air_pitch_max_angle)
+		var target_pitch: float = inp_pitch * deg_to_rad(air_pitch_max_angle)
 		current_air_pitch = lerp(current_air_pitch, target_pitch, air_pitch_responsiveness * delta)
 	else:
 		current_air_pitch = lerp(current_air_pitch, 0.0, air_pitch_return_speed * delta)
@@ -248,8 +289,8 @@ func _update_air_pitch(delta: float) -> void:
 # =================================================
 # JUMP
 func _execute_jump() -> void:
-	var charge_val:float = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
-	var force:float  = lerp(min_jump_force, max_jump_force, charge_val)
+	var charge_val: float = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
+	var force: float = lerp(min_jump_force, max_jump_force, charge_val)
 
 	floor_snap_length = 0.0
 	air_spin_timer = 0.0
@@ -280,7 +321,7 @@ func _update_drift(delta: float) -> void:
 		if PlayerSFX: PlayerSFX.stop_drift_loop()
 		return
 
-	var drift_input = inp_drift and abs(input_dir.x) > 0.1
+	var drift_input = inp_drift and abs(inp_steer) > 0.1
 
 	if is_drifting and not drift_input:
 		if drift_charge >= 1.0:
@@ -303,19 +344,26 @@ func _update_speed(delta: float) -> void:
 	if dash_timer > 0.0:
 		dash_timer -= delta
 		current_speed = dash_velocity
-	elif is_charging_jump:
-		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
-	else:
-		if is_on_floor():
+		return
+
+	match loco_state:
+		LocomotionState.JUMP_CHARGING:
+			current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
+
+		LocomotionState.GROUNDED:
 			if inp_throttle > 0:
 				current_speed = move_toward(current_speed, max_speed, acceleration * delta)
 			elif inp_brake > 0:
 				current_speed = move_toward(current_speed, 0.0, braking * delta)
 			else:
 				current_speed = move_toward(current_speed, 0.0, friction * delta)
-		else:
+
+		LocomotionState.DRIFTING:
+			pass  # deceleration handled inside _update_drift
+
+		LocomotionState.AIRBORNE, LocomotionState.WALL_RUNNING, LocomotionState.WALL_ATTACHED:
 			current_speed = move_toward(current_speed, 0.0, air_drag * delta)
-			var dive_factor:float = sin(current_air_pitch)
+			var dive_factor: float = sin(current_air_pitch)
 			if dive_factor > 0:
 				current_speed += dive_speed_gain * dive_factor * delta
 			else:
@@ -326,45 +374,38 @@ func _update_speed(delta: float) -> void:
 # =================================================
 # PHYSICS & ROTATION
 func _apply_rotation(delta: float) -> void:
-	var turn_scale = 1.0
+	var turn_scale: float = 1.0
 
-	if is_charging_jump:
-		turn_scale = 0.5
-	elif is_drifting:
-		turn_scale *= drift_turn_multiplier
-	elif !is_on_floor() && !is_on_wall():
-		turn_scale = 0.1 if air_spin_timer < air_rotation_delay else air_rotation_multiplier
+	match loco_state:
+		LocomotionState.JUMP_CHARGING:
+			turn_scale = 0.5
+		LocomotionState.DRIFTING:
+			turn_scale = drift_turn_multiplier
+		LocomotionState.AIRBORNE:
+			turn_scale = 0.1 if air_spin_timer < air_rotation_delay else air_rotation_multiplier
+		_:
+			turn_scale = 1.0
 
 	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
 
 func _apply_horizontal_movement(delta: float) -> void:
-	if is_wall_running: return
-	var forward:Vector3 = -transform.basis.z
-	var right:Vector3 = transform.basis.x
-
-	if is_on_floor():
-		var horizontal_fwd:Vector3 = Vector3(forward.x, 0.0, forward.z).normalized() if Vector3(forward.x, 0.0, forward.z).length() > 0.01 else forward
-		velocity.x = horizontal_fwd.x * current_speed
-		velocity.z = horizontal_fwd.z * current_speed
-	else:
-		var lateral_move:float = -smoothed_input_x * air_lateral_force
-		var target_vel:Vector3 = (forward * current_speed) + (right * lateral_move)
-		velocity.x = move_toward(velocity.x, target_vel.x, 30.0 * delta)
-		velocity.z = move_toward(velocity.z, target_vel.z, 30.0 * delta)
+	if loco_state == LocomotionState.WALL_RUNNING: return
+	velocity.x = move_toward(velocity.x, moveDir.x, 30.0 * delta)
+	velocity.z = move_toward(velocity.z, moveDir.z, 30.0 * delta)
 
 func _apply_slope_momentum(delta: float) -> void:
 	if !is_on_floor(): return
-	var normal:Vector3  = get_floor_normal()
-	var slope:float  = 1.0 - normal.dot(Vector3.UP)
+	var normal: Vector3 = get_floor_normal()
+	var slope: float = 1.0 - normal.dot(Vector3.UP)
 	if slope < 0.02: return
-	var downhill:Vector3 = Vector3.DOWN.slide(normal).normalized()
-	var alignment:float = downhill.dot(-board_mesh.global_transform.basis.z)
+	var downhill: Vector3 = Vector3.DOWN.slide(normal).normalized()
+	var alignment: float = downhill.dot(-board_mesh.global_transform.basis.z)
 	current_speed += alignment * slope_accel_strength * slope * delta
 	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 func _apply_surface_gravity(delta: float) -> void:
-	var g:float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
-	if is_wall_running: g *= wall_gravity_mul
+	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
+	if loco_state == LocomotionState.WALL_RUNNING: g *= wall_gravity_mul
 	if is_on_floor() || get_slide_collision_count() > 0:
 		ChangeVelocity(-last_surface_normal, g * delta)
 	else:
@@ -372,8 +413,8 @@ func _apply_surface_gravity(delta: float) -> void:
 
 func _apply_floor_stick(delta: float) -> void:
 	if !(is_on_floor()): return
-	var stick_normal:Vector3 = wall_normal if is_wall_running else last_surface_normal
-	var stick:float = wall_stick_force if is_wall_running else stick_force
+	var stick_normal: Vector3 = wall_normal if loco_state == LocomotionState.WALL_RUNNING else last_surface_normal
+	var stick: float = wall_stick_force if loco_state == LocomotionState.WALL_RUNNING else stick_force
 	ChangeVelocity(-stick_normal, stick * delta)
 
 func ChangeVelocity(vet3: Vector3, force: float) -> void:
@@ -398,7 +439,7 @@ func _detect_wall_running() -> void:
 			break
 
 func _maintain_wall_speed() -> void:
-	if !is_wall_running: return
+	if loco_state != LocomotionState.WALL_RUNNING: return
 	velocity = velocity.slide(wall_normal).normalized() * current_speed
 	ChangeVelocity(-wall_normal, wall_stick_force * get_physics_process_delta_time())
 
@@ -412,26 +453,26 @@ func _apply_ramp_boost_on_leave() -> void:
 # VISUALS
 func _update_board_visual(delta: float) -> void:
 	if !board_mesh: return
-	var lean_mult:float = drift_lean_multiplier if is_drifting else 1.0
-	var speed_percent:float = clamp(current_speed / max_speed, 0.2, 1.2)
-	var target_tilt:float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
+	var lean_mult: float = drift_lean_multiplier if loco_state == LocomotionState.DRIFTING else 1.0
+	var speed_percent: float = clamp(current_speed / max_speed, 0.2, 1.2)
+	var target_tilt: float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
 	var visual_basis = global_transform.basis
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	var total_pitch:float = (crouch_tilt_amount if is_charging_jump else 0.0) + current_air_pitch
+	var total_pitch: float = (crouch_tilt_amount if loco_state == LocomotionState.JUMP_CHARGING else 0.0) + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
 # =================================================
 # ALIGNMENTS
 func _align_Board(delta: float, target_normal: Vector3 = Vector3.ZERO, use_target: bool = false) -> void:
-	var curr_fwd:Vector3 = -global_transform.basis.z
+	var curr_fwd: Vector3 = -global_transform.basis.z
 	if use_target:
 		global_transform.basis.y = target_normal
 		global_transform.basis.x = curr_fwd.cross(target_normal).normalized()
 		global_transform.basis.z = global_transform.basis.x.cross(target_normal).normalized()
 	else:
-		var current_up:Vector3 = global_transform.basis.y
+		var current_up: Vector3 = global_transform.basis.y
 		if current_up.dot(Vector3.UP) < 0.99:
 			var next_up = current_up.lerp(Vector3.UP, air_stability_leveling * delta).normalized()
 			global_transform.basis.y = next_up

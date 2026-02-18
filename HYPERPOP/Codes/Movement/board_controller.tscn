@@ -9360,7 +9360,7 @@ floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
 board_mesh = NodePath("RyderGear")
 board_target = NodePath("BoardTarget")
-Rider_Model = NodePath("RyderGear/RyderModel")
+Rider_Model = NodePath("RyderGear/RYDER_TARGET")
 Cam = NodePath("Camera3D")
 PlayerSFX = NodePath("Sound")
 
