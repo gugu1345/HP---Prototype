@@ -41,6 +41,9 @@ class_name BoardController
 @export var wall_run_min_speed: float = 25.0
 @export var wall_stick_force: float = 180.0
 @export var wall_gravity_mul: float = 0.35
+var is_wall_attached: bool = false
+@export var wall_attach_slide_speed: float = 8.0
+@export var wall_attach_gravity_mul: float = 0.15
 
 # =================================================
 # CONFIG — AIR CONTROLS
@@ -80,7 +83,7 @@ class_name BoardController
 @export var drift_dash_duration: float = 0.2
 @export var drift_deceleration_rate: float = 8.0
 
-#==================================================
+# =================================================
 # SYSTEMS
 @export_category("Systems")
 @export var Cam: CameraController
@@ -107,6 +110,7 @@ var wall_normal: Vector3 = Vector3.ZERO
 var current_air_pitch: float = 0.0
 var last_ground_position: Vector3 = Vector3.ZERO
 var grounded_time: float = 0.0
+
 # =================================================
 # CENTRALISED INPUT STATE — populated once per frame in _read_input()
 var inp_throttle: float = 0.0
@@ -114,7 +118,7 @@ var inp_brake: float = 0.0
 var inp_steer: float = 0.0        # left(+) / right(-)
 var inp_drift: bool = false
 var inp_jump_held: bool = false
-var inp_pitch: float = 0.0        # throttle - brake  (for air pitch)
+var inp_pitch: float = 0.0        # throttle - brake (for air pitch)
 
 # =================================================
 # READY
@@ -146,22 +150,28 @@ func _physics_process(delta: float) -> void:
 
 	_detect_wall_running()
 	
-	if was_wall_running and not is_wall_running:
+	if was_wall_running and not is_wall_running and not is_wall_attached:
 		_on_wall_run_exit()
 
-	# Alignment Logic
+
 	if is_wall_running:
 		_align_Board(delta, wall_normal, true)
 		up_direction = wall_normal
 		_apply_floor_stick(delta)
+	elif is_wall_attached:
+		up_direction = Vector3.UP
+		_align_Board(delta)
+		velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+		velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+		velocity.y = move_toward(velocity.y, -wall_attach_slide_speed, 10.0 * delta)
+		ChangeVelocity(-wall_normal, wall_stick_force * delta)
 	elif is_on_floor():
 		_align_Board(delta, get_floor_normal(), true)
 		last_surface_normal = get_floor_normal()
-		
 		air_time = 0.0
 		if grounded_time >= 3.5:
 			last_ground_position = global_position
-			grounded_time =0.0
+			grounded_time = 0.0
 		else:
 			grounded_time += delta
 		up_direction = get_floor_normal()
@@ -195,32 +205,22 @@ func _physics_process(delta: float) -> void:
 
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
-	if is_on_floor():
-		last_surface_normal = get_floor_normal()
-		air_time = 0.0
-	else:
-		air_time += delta
+
 
 # =================================================
 # INPUT — single source of truth
 func _read_input(delta: float) -> void:
-	# Raw axes
-	inp_throttle = Input.get_action_strength("throttle")
-	inp_brake    = Input.get_action_strength("brake")
-	inp_steer    = Input.get_action_strength("left") - Input.get_action_strength("right")
-	inp_drift    = Input.is_action_pressed("drift")
+	inp_throttle  = Input.get_action_strength("throttle")
+	inp_brake     = Input.get_action_strength("brake")
+	inp_steer     = Input.get_action_strength("left") - Input.get_action_strength("right")
+	inp_drift     = Input.is_action_pressed("drift")
 	inp_jump_held = Input.is_action_pressed("Jump")
-	inp_pitch    = inp_throttle - inp_brake
+	inp_pitch     = inp_throttle - inp_brake
 
-	# Keyboard fallbacks
-	inp_pitch = inp_throttle - inp_brake
-
-	# Steer smoothing
 	input_dir.x = inp_steer
 	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
 
-	# Jump charge / execute logic
-	var can_jump = is_on_floor() or is_wall_running
+	var can_jump = is_on_floor()
 
 	if is_charging_jump and not inp_jump_held:
 		_execute_jump()
@@ -234,7 +234,7 @@ func _read_input(delta: float) -> void:
 # =================================================
 # AIR CONTROLS
 func _update_air_pitch(delta: float) -> void:
-	if !is_on_floor() && !is_wall_running:
+	if !is_on_floor() && !is_on_wall():
 		var target_pitch = inp_pitch * deg_to_rad(air_pitch_max_angle)
 		current_air_pitch = lerp(current_air_pitch, target_pitch, air_pitch_responsiveness * delta)
 	else:
@@ -265,7 +265,6 @@ func _handle_landing(delta: float) -> void:
 	if !is_on_floor(): return
 	if !was_on_floor && air_time > 0.15:
 		if PlayerSFX: PlayerSFX.play_land()
-		_reset_ik_positions()
 
 # =================================================
 # DRIFT & DASH
@@ -328,7 +327,7 @@ func _apply_rotation(delta: float) -> void:
 		turn_scale = 0.5
 	elif is_drifting:
 		turn_scale *= drift_turn_multiplier
-	elif !is_on_floor() && !is_wall_running:
+	elif !is_on_floor() && !is_on_wall():
 		turn_scale = 0.1 if air_spin_timer < air_rotation_delay else air_rotation_multiplier
 		
 	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
@@ -362,32 +361,36 @@ func _apply_surface_gravity(delta: float) -> void:
 	var g = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
 	if is_wall_running: g *= wall_gravity_mul
 	if is_on_floor() || get_slide_collision_count() > 0:
-		ChangeVelocity(-last_surface_normal , g * delta)
+		ChangeVelocity(-last_surface_normal, g * delta)
 	else:
-		ChangeVelocity(-Vector3.UP,  g * delta)
+		ChangeVelocity(-Vector3.UP, g * delta)
 
 func _apply_floor_stick(delta: float) -> void:
-	if !(is_on_floor() || is_wall_running): return
+	if !(is_on_floor()): return
 	var stick_normal = wall_normal if is_wall_running else last_surface_normal
 	var stick = wall_stick_force if is_wall_running else stick_force
 	ChangeVelocity(-stick_normal, stick * delta)
-func  ChangeVelocity(vet3:Vector3,force:float) -> void:
+
+func ChangeVelocity(vet3: Vector3, force: float) -> void:
 	velocity += vet3 * force
+
 # =================================================
 # WALL RUNNING & RAMP BOOST
 func _detect_wall_running() -> void:
-	if !enable_wall_running || is_on_floor() || current_speed < wall_run_min_speed:
-		is_wall_running = false
+	is_wall_running = false
+	is_wall_attached = false
+	if !enable_wall_running || is_on_floor():
 		return
-	var found_wall = false
+
 	for i in get_slide_collision_count():
 		var n = get_slide_collision(i).get_normal()
 		if abs(n.dot(Vector3.UP)) < 0.3:
 			wall_normal = n
-			found_wall = true
-			is_wall_running = true
+			if current_speed >= wall_run_min_speed:
+				is_wall_running = true
+			else:
+				is_wall_attached = true
 			break
-	if !found_wall: is_wall_running = false
 
 func _maintain_wall_speed() -> void:
 	if !is_wall_running: return
@@ -398,7 +401,7 @@ func _apply_ramp_boost_on_leave() -> void:
 	if was_on_floor && !is_on_floor():
 		var angle_factor = 1.0 - last_surface_normal.dot(Vector3.UP)
 		if angle_factor > 0.15:
-			ChangeVelocity(velocity.normalized() , slope_alignment_speed * angle_factor * get_physics_process_delta_time())
+			ChangeVelocity(velocity.normalized(), slope_alignment_speed * angle_factor * get_physics_process_delta_time())
 
 # =================================================
 # VISUALS
@@ -410,14 +413,13 @@ func _update_board_visual(delta: float) -> void:
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
 	var visual_basis = global_transform.basis
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	var crouch_tilt = crouch_tilt_amount if is_charging_jump else 0.0
-	var total_pitch = crouch_tilt + current_air_pitch
+	var total_pitch = (crouch_tilt_amount if is_charging_jump else 0.0) + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
 # =================================================
 # ALIGNMENTS
-func _align_Board(delta: float, target_normal: Vector3=Vector3.ZERO, use_target: bool=false) -> void:
+func _align_Board(delta: float, target_normal: Vector3 = Vector3.ZERO, use_target: bool = false) -> void:
 	var curr_fwd = -global_transform.basis.z
 	if use_target:
 		global_transform.basis.y = target_normal
@@ -432,7 +434,6 @@ func _align_Board(delta: float, target_normal: Vector3=Vector3.ZERO, use_target:
 			global_transform.basis.z = global_transform.basis.x.cross(next_up).normalized()
 	global_transform.basis = global_transform.basis.orthonormalized()
 
-
 func _teleport_to_last_ground() -> void:
 	global_position = last_ground_position
 	velocity = Vector3.ZERO
@@ -445,6 +446,3 @@ func _on_wall_run_exit() -> void:
 	last_surface_normal = Vector3.UP
 	up_direction = Vector3.UP
 	if velocity.y < 0: velocity.y *= 0.5
-
-func _reset_ik_positions() -> void:
-	pass
