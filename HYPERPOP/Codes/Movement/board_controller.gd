@@ -11,22 +11,22 @@ class_name BoardController
 @export var air_drag: float = 35
 @export var rotation_speed: float = 1.5
 @export var rotation_smoothing: float = 12.0
+@export var max_velocity: float = 150.0 
 
 # =================================================
 # CONFIG — JUMP & CHARGE
 @export_category("Jump")
 @export var min_jump_force: float = 12.0
 @export var max_jump_force: float = 35.0
-@export var jump_charge_drag: float = 0.3
+@export var jump_charge_drag: float = 0.3 
 
 # =================================================
 # CONFIG — PHYSICS
 @export_category("Physics")
-@export var gravity_mul: float = 3.0
-@export var stick_force: float = 120.0 # Increased to stick better to slopes
+@export var gravity_mul: float = 5
+@export var stick_force: float = 120.0 
 @export var slope_alignment_speed: float = 22.0
-@export var snap_length: float = 0.8 # Snap distance to keep grounded on slopes
-@export var max_velocity: float = 150.0 # NEW: Maximum velocity cap for ChangeVelocity
+@export var snap_length: float = 0.8 
 
 # =================================================
 # CONFIG — SLOPE PHYSICS
@@ -43,14 +43,17 @@ class_name BoardController
 @export var wall_gravity_mul: float = 0.35
 
 # =================================================
-# CONFIG — AIR CONTROLS (NEW)
+# CONFIG — AIR CONTROLS
 @export_category("Air Controls")
-@export var air_rotation_multiplier: float = 2.0
+@export var air_rotation_multiplier: float = 2.5
+@export var air_rotation_delay: float = 0.15 # Tempo em segundos antes de poder girar no ar
 @export var air_pitch_max_angle: float = 50.0
-@export var air_pitch_responsiveness: float = 8.0
-@export var air_pitch_return_speed: float = 6.0
-@export var dive_speed_gain: float = 45.0
-@export var pull_up_speed_loss: float = 25.0
+@export var air_pitch_responsiveness: float = 10.0
+@export var air_pitch_return_speed: float = 4.0
+@export var dive_speed_gain: float = 55.0
+@export var pull_up_speed_loss: float = 30.0
+@export var air_lateral_force: float = 18.0 
+@export var air_stability_leveling: float = 3.5 
 
 # =================================================
 # CONFIG — VISUALS & LEAN
@@ -64,6 +67,7 @@ class_name BoardController
 @export var max_lean_angle: float = 0.6
 @export var drift_lean_multiplier: float = 1.5
 @export var lean_responsiveness: float = 8.0
+@export_group("Animation")
 @export var crouch_tilt_amount: float = -0.12
 
 # =================================================
@@ -77,12 +81,11 @@ class_name BoardController
 @export var drift_deceleration_rate: float = 8.0
 
 #==================================================
-#Camra
-@export_category("Source")
+# SYSTEMS
+@export_category("Systems")
 @export var Cam: CameraController
-# =================================================
-# Sound
 @export var PlayerSFX: PlaySoundsFX
+
 # =================================================
 # STATE
 var current_speed: float = 0.0
@@ -91,26 +94,17 @@ var smoothed_input_x: float = 0.0
 var was_on_floor: bool = true
 var last_surface_normal: Vector3 = Vector3.UP
 var air_time: float = 0.0
-
-
+var air_spin_timer: float = 0.0 # Timer para o delay de rotação
 var is_charging_jump: bool = false
-
-# Visual/Drift
 var current_tilt: float = 0.0
 var is_drifting: bool = false
 var drift_charge: float = 0.0
 var dash_timer: float = 0.0
 var dash_velocity: float = 0.0
-
-# Wall Running & State Management
 var is_wall_running: bool = false
 var was_wall_running: bool = false
 var wall_normal: Vector3 = Vector3.ZERO
-
-# Air pitch 
 var current_air_pitch: float = 0.0
-
-
 
 # =================================================
 # READY
@@ -121,109 +115,114 @@ func _ready() -> void:
 	floor_block_on_wall = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
-
 # =================================================
 # MAIN LOOP
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
-	_update_air_pitch(delta)          # NOVO
-	PlayerSFX._update_jump_charge(delta,is_charging_jump,is_wall_running)
+	_update_air_pitch(delta) 
+	
+	if PlayerSFX:
+		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
+	
 	_update_drift(delta)
 	_update_speed(delta)
-	
+
 	# 2. Physics & Momentum
 	_apply_slope_momentum(delta)
 	_apply_surface_gravity(delta)
 	_apply_rotation(delta)
-	_apply_horizontal_movement()      # Modificado para projeção horizontal
-	
-	# WallRun Logic and Alignment
+	_apply_horizontal_movement(delta)
+
 	_detect_wall_running()
+	
 	if was_wall_running and not is_wall_running:
 		_on_wall_run_exit()
-	
-	# Aligment
+
+	# Alignment Logic
 	if is_wall_running:
-		_align_Board(delta, wall_normal,true)
+		_align_Board(delta, wall_normal, true)
 		up_direction = wall_normal
 		_apply_floor_stick(delta)
 	elif is_on_floor():
-		_align_Board(delta, get_floor_normal(),true)
+		_align_Board(delta, get_floor_normal(), true)
 		up_direction = get_floor_normal()
 		_apply_floor_stick(delta)
+		air_spin_timer = 0.0 # Reseta timer no chão
 	else:
-		_align_Board(delta)
+		_align_Board_Air(delta)
 		up_direction = Vector3.UP
-	
+		air_spin_timer += delta # Acumula tempo no ar
+
 	# 3. Execution
 	if not is_charging_jump and not is_wall_running:
 		apply_floor_snap()
-	move_and_slide()
-	Cam._update_camera_logic(delta,is_drifting)
+		move_and_slide()
+	elif is_charging_jump:
+		move_and_slide()
+		
+	if Cam:
+		Cam._update_camera_logic(delta, is_drifting)
+
 	# 4. Post-Move Logic
 	_maintain_wall_speed()
 	_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
 	_update_board_visual(delta)
-	PlayerSFX._update_engine_audio(current_speed,max_speed)
 	
-	# Atualiza estados passados
+	if PlayerSFX:
+		PlayerSFX._update_engine_audio(current_speed, max_speed)
+
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
 	if is_on_floor():
 		last_surface_normal = get_floor_normal()
 		air_time = 0.0
+	else:
+		air_time += delta
 
 # =================================================
-# AIR CONTROLS (PITCH)
+# AIR CONTROLS
 func _update_air_pitch(delta: float) -> void:
-	var throttle: float = 0.0
-	if InputMap.has_action("throttle"):
-		throttle = Input.get_action_strength("throttle")
-	else:
-		throttle = Input.get_action_strength("ui_up")
-	if Input.is_key_pressed(KEY_W):
-		throttle = 1.0
+	var throttle = Input.get_action_strength("throttle") if InputMap.has_action("throttle") else Input.get_action_strength("ui_up")
+	if Input.is_key_pressed(KEY_W): throttle = 1.0
 	
-	var brake: float = 0.0
-	if InputMap.has_action("brake"):
-		brake = Input.get_action_strength("brake")
-	else:
-		brake = Input.get_action_strength("ui_down")
-	if Input.is_key_pressed(KEY_S):
-		brake = 1.0
+	var brake = Input.get_action_strength("brake") if InputMap.has_action("brake") else Input.get_action_strength("ui_down")
+	if Input.is_key_pressed(KEY_S): brake = 1.0
 	
-	var pitch_input: float = throttle - brake
+	var pitch_input = throttle - brake
 	
-	var target_pitch: float = 0.0
 	if !is_on_floor() && !is_wall_running:
-		target_pitch = pitch_input * deg_to_rad(air_pitch_max_angle)
-	
-	var lerp_speed: float = air_pitch_responsiveness if !is_on_floor() && !is_wall_running else air_pitch_return_speed
-	current_air_pitch = lerp(current_air_pitch, target_pitch, lerp_speed * delta)
+		var target_pitch = pitch_input * deg_to_rad(air_pitch_max_angle)
+		current_air_pitch = lerp(current_air_pitch, target_pitch, air_pitch_responsiveness * delta)
+	else:
+		current_air_pitch = lerp(current_air_pitch, 0.0, air_pitch_return_speed * delta)
 
 # =================================================
-# INPUT
+# INPUT & JUMP
 func _read_input(delta: float) -> void:
-	input_dir.x = 0.0
-	input_dir.x += Input.get_action_strength("left") - Input.get_action_strength("right")
-
-	
+	input_dir.x = Input.get_action_strength("left") - Input.get_action_strength("right")
 	smoothed_input_x = lerp(smoothed_input_x, input_dir.x, rotation_smoothing * delta)
 	
-	var jump_pressed = Input.is_action_pressed("Jump") && (is_on_floor() || is_wall_running)
-	if is_charging_jump && !jump_pressed:
+	var can_jump = is_on_floor() or is_wall_running
+	var jump_button_held = Input.is_action_pressed("Jump")
+	
+	if is_charging_jump and not jump_button_held:
 		_execute_jump()
-	is_charging_jump = jump_pressed
-
-# =================================================
-# JUMP
-
+		is_charging_jump = false 
+	
+	if can_jump and jump_button_held:
+		is_charging_jump = true
+	elif not jump_button_held:
+		is_charging_jump = false
 
 func _execute_jump() -> void:
-	var force = lerp(min_jump_force, max_jump_force, PlayerSFX.current_jump_charge)
+	var charge_val = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
+	var force = lerp(min_jump_force, max_jump_force, charge_val)
+	
 	floor_snap_length = 0.0
+	air_spin_timer = 0.0 # Reseta o delay de giro ao iniciar o pulo
+	
 	if is_wall_running && wall_normal != Vector3.ZERO:
 		velocity += wall_normal * force * 1.4
 		velocity.y += force * 0.5
@@ -231,88 +230,116 @@ func _execute_jump() -> void:
 		_on_wall_run_exit()
 	else:
 		velocity += last_surface_normal * force
-	PlayerSFX.play_jump_launch()
-	PlayerSFX.current_jump_charge = 0.0
+		
+	if PlayerSFX:
+		PlayerSFX.play_jump_launch()
+		PlayerSFX.current_jump_charge = 0.0
 
 func _handle_landing(delta: float) -> void:
-	if !is_on_floor():
-		air_time += delta
-		return
+	if !is_on_floor(): return
 	if !was_on_floor && air_time > 0.15:
-		PlayerSFX.play_land()
+		if PlayerSFX: PlayerSFX.play_land()
 		_reset_ik_positions()
 
 # =================================================
-# DRIFT
+# DRIFT & DASH
 func _update_drift(delta: float) -> void:
 	if !is_on_floor() || current_speed < drift_min_speed:
 		is_drifting = false
 		drift_charge = 0.0
-		PlayerSFX.stop_drift_loop()
+		if PlayerSFX: PlayerSFX.stop_drift_loop()
 		return
+		
+	var drift_input = Input.is_action_pressed("drift") and abs(input_dir.x) > 0.1
 	
-	is_drifting = Input.is_action_pressed("drift") && abs(input_dir.x) > 0.1
-	if is_drifting:
-		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
-		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
-		PlayerSFX.play_drift_loop()
-	else:
-		PlayerSFX.stop_drift_loop()
+	if is_drifting and not drift_input:
 		if drift_charge >= 1.0:
 			dash_velocity = current_speed + drift_dash_force
 			dash_timer = drift_dash_duration
-			PlayerSFX.play_dash()
-			drift_charge = 0.0
+			if PlayerSFX: PlayerSFX.play_dash()
+		
+		drift_charge = 0.0 
+		if PlayerSFX: PlayerSFX.stop_drift_loop()
+		
+	is_drifting = drift_input
+	
+	if is_drifting:
+		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
+		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
+		if PlayerSFX: PlayerSFX.play_drift_loop()
 
 # =================================================
-# SPEED (agora com ganho/perda por pitch aéreo)
+# SPEED & SPEED CAP
 func _update_speed(delta: float) -> void:
 	if dash_timer > 0.0:
 		dash_timer -= delta
 		current_speed = dash_velocity
-		return
-	
-	if is_charging_jump:
+	elif is_charging_jump:
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
-		return
-	
-	var throttle = Input.get_action_strength("throttle") 
-	var brake = Input.get_action_strength("brake") 
-	
-	if brake > 0.0 && current_speed > 1.0:
-		PlayerSFX.play_brake()
 	else:
-		PlayerSFX.stop_brake()
-	
-	if throttle > 0:
-		current_speed = move_toward(current_speed, max_speed, acceleration * delta)
-	elif brake > 0:
-		current_speed = move_toward(current_speed, 0.0, braking * delta)
-	else:
-		var drag: float = friction if is_on_floor() else air_drag
-		current_speed = move_toward(current_speed, 0.0, drag * delta)
-	
-	# Ganho/perda de velocidade no ar baseado no pitch do board (SSX-style)
-	if !is_on_floor() && !is_wall_running:
-		var dive_factor = sin(current_air_pitch)  # positivo = nose down
-		if dive_factor > 0:
-			current_speed += dive_speed_gain * dive_factor * delta
+		var throttle = Input.get_action_strength("throttle")
+		var brake = Input.get_action_strength("brake")
+		
+		if is_on_floor():
+			if throttle > 0:
+				current_speed = move_toward(current_speed, max_speed, acceleration * delta)
+			elif brake > 0:
+				current_speed = move_toward(current_speed, 0.0, braking * delta)
+			else:
+				current_speed = move_toward(current_speed, 0.0, friction * delta)
 		else:
-			current_speed -= pull_up_speed_loss * abs(dive_factor) * delta
-		current_speed = max(current_speed, 0.0)
+			current_speed = move_toward(current_speed, 0.0, air_drag * delta)
+			var dive_factor = sin(current_air_pitch) 
+			if dive_factor > 0:
+				current_speed += dive_speed_gain * dive_factor * delta
+			else:
+				current_speed -= pull_up_speed_loss * abs(dive_factor) * delta
 
-	
+	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 # =================================================
-# PHYSICS
+# PHYSICS & ROTATION (AIR DELAY IMPLEMENTADO)
+func _apply_rotation(delta: float) -> void:
+	var turn_scale = 1.0
+	
+	if is_charging_jump: 
+		turn_scale = 0.5
+	elif is_drifting: 
+		turn_scale *= drift_turn_multiplier
+	elif !is_on_floor() && !is_wall_running:
+		# LÓGICA DE DELAY NO AR:
+		# Se o tempo no ar for menor que o delay, o giro é quase nulo (0.1 de força)
+		if air_spin_timer < air_rotation_delay:
+			turn_scale = 0.1 
+		else:
+			turn_scale *= air_rotation_multiplier
+		
+	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
+
+func _apply_horizontal_movement(delta: float) -> void:
+	if is_wall_running: return
+	var forward = -transform.basis.z
+	var right = transform.basis.x
+	
+	if is_on_floor():
+		var horizontal_fwd = Vector3(forward.x, 0.0, forward.z).normalized() if Vector3(forward.x, 0.0, forward.z).length() > 0.01 else forward
+		velocity.x = horizontal_fwd.x * current_speed
+		velocity.z = horizontal_fwd.z * current_speed
+	else:
+		var lateral_move = -smoothed_input_x * air_lateral_force
+		var target_vel = (forward * current_speed) + (right * lateral_move)
+		velocity.x = move_toward(velocity.x, target_vel.x, 30.0 * delta)
+		velocity.z = move_toward(velocity.z, target_vel.z, 30.0 * delta)
+
 func _apply_slope_momentum(delta: float) -> void:
 	if !is_on_floor(): return
-	var normal: Vector3 = get_floor_normal()
-	var slope: float = 1.0 - normal.dot(Vector3.UP)
+	var normal = get_floor_normal()
+	var slope = 1.0 - normal.dot(Vector3.UP)
 	if slope < 0.02: return
-	var downhill: Vector3 = Vector3.DOWN.slide(normal).normalized()
-	var alignment: float = downhill.dot( -board_mesh.global_transform.basis.z)
+	var downhill = Vector3.DOWN.slide(normal).normalized()
+	var alignment = downhill.dot(-board_mesh.global_transform.basis.z)
 	current_speed += alignment * slope_accel_strength * slope * delta
+	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 func _apply_surface_gravity(delta: float) -> void:
 	var g = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
@@ -322,34 +349,14 @@ func _apply_surface_gravity(delta: float) -> void:
 	else:
 		velocity.y -= g * delta
 
-func _apply_rotation(delta: float) -> void:
-	var turn_scale: float = 0.5 if is_charging_jump else 1.0
-	if is_drifting: turn_scale *= drift_turn_multiplier
-	if !is_on_floor() && !is_wall_running:
-		turn_scale *= air_rotation_multiplier   # Mais responsivo no ar
-	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
-
-func _apply_horizontal_movement() -> void:
-	if is_wall_running: return
-	var forward:Vector3 = -transform.basis.z
-	var horizontal_forward:Vector3 = Vector3(forward.x, 0.0, forward.z)
-	if horizontal_forward.length_squared() > 0.01:
-		horizontal_forward = horizontal_forward.normalized()
-	else:
-		horizontal_forward = -transform.basis.z  # fallback
-	velocity.x = horizontal_forward.x * current_speed
-	velocity.z = horizontal_forward.z * current_speed
-
 func _apply_floor_stick(delta: float) -> void:
 	if !(is_on_floor() || is_wall_running): return
 	var stick_normal = wall_normal if is_wall_running else last_surface_normal
-	var stick: float = wall_stick_force if is_wall_running else stick_force
-	if !is_wall_running && velocity.normalized().dot(stick_normal) < 0.1:
-		stick *= 2.0
+	var stick = wall_stick_force if is_wall_running else stick_force
 	velocity -= stick_normal * stick * delta
 
 # =================================================
-# WALL RUN & BOOST
+# WALL RUNNING & RAMP BOOST
 func _detect_wall_running() -> void:
 	if !enable_wall_running || is_on_floor() || current_speed < wall_run_min_speed:
 		is_wall_running = false
@@ -362,8 +369,7 @@ func _detect_wall_running() -> void:
 			found_wall = true
 			is_wall_running = true
 			break
-	if !found_wall:
-		is_wall_running = false
+	if !found_wall: is_wall_running = false
 
 func _maintain_wall_speed() -> void:
 	if !is_wall_running: return
@@ -377,52 +383,44 @@ func _apply_ramp_boost_on_leave() -> void:
 			velocity += velocity.normalized() * slope_alignment_speed * angle_factor
 
 # =================================================
-# CAMERA
-
-# =================================================
-# VISUALS 
+# VISUALS
 func _update_board_visual(delta: float) -> void:
 	if !board_mesh: return
 	var lean_mult = drift_lean_multiplier if is_drifting else 1.0
-	var target_tilt = -smoothed_input_x * (max_lean_angle * lean_mult) * clamp(current_speed / max_speed, 0.2, 1.2)
+	var speed_percent = clamp(current_speed / max_speed, 0.2, 1.2)
+	var target_tilt = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
-	
 	var visual_basis = global_transform.basis
-	
-	# Lean (roll)
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	
-	# Pitch + crouch
 	var crouch_tilt = crouch_tilt_amount if is_charging_jump else 0.0
 	var total_pitch = crouch_tilt + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
-	
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
-
-
-# =================================================
-# WALLRUN IK
-func _on_wall_run_exit() -> void:
-	last_surface_normal = Vector3.UP
-	up_direction = Vector3.UP
-	if velocity.y < 0:
-		velocity.y *= 0.5
-	_reset_ik_positions()
-
-func _reset_ik_positions() -> void:
-	pass
 
 # =================================================
 # ALIGNMENTS
-func _align_Board(delta: float, target_normal: Vector3=Vector3.ZERO,UseTarget:bool= false) -> void:
-	if UseTarget:
+func _align_Board(delta: float, target_normal: Vector3, use_target: bool) -> void:
+	if use_target:
+		var curr_fwd = -global_transform.basis.z
 		global_transform.basis.y = target_normal
-		global_transform.basis.x = -global_transform.basis.z.cross(target_normal)
-	else:
-		if global_transform.basis.y.dot(Vector3.UP) > 0.99:
-			return
-		global_transform.basis.y = Vector3.UP
-		global_transform.basis.x = -global_transform.basis.z.cross(Vector3.UP)
+		global_transform.basis.x = curr_fwd.cross(target_normal).normalized()
+		global_transform.basis.z = global_transform.basis.x.cross(target_normal).normalized()
+		global_transform.basis = global_transform.basis.orthonormalized()
 
-	global_transform.basis = global_transform.basis.orthonormalized()
-	global_transform.basis = global_transform.basis.slerp(global_transform.basis, slope_alignment_speed * delta)
+func _align_Board_Air(delta: float) -> void:
+	var current_up = global_transform.basis.y
+	if current_up.dot(Vector3.UP) < 0.99:
+		var next_up = current_up.lerp(Vector3.UP, air_stability_leveling * delta).normalized()
+		var curr_fwd = -global_transform.basis.z
+		global_transform.basis.y = next_up
+		global_transform.basis.x = curr_fwd.cross(next_up).normalized()
+		global_transform.basis.z = global_transform.basis.x.cross(next_up).normalized()
+		global_transform.basis = global_transform.basis.orthonormalized()
+
+func _on_wall_run_exit() -> void:
+	last_surface_normal = Vector3.UP
+	up_direction = Vector3.UP
+	if velocity.y < 0: velocity.y *= 0.5
+
+func _reset_ik_positions() -> void:
+	pass
