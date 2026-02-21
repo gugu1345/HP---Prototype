@@ -9360,6 +9360,7 @@ albedo_color = Color(0.3019608, 0.5411765, 0.9254902, 0.25882354)
 floor_block_on_wall = false
 floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
+ignore_align_mask = 23
 board_mesh = NodePath("RyderGear")
 Cam = NodePath("Camera3D")
 PlayerSFX = NodePath("Sound")

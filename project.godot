@@ -111,6 +111,14 @@ drift={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="Boards"
+3d_physics/layer_2="Player"
+3d_physics/layer_3="Enamys"
+3d_physics/layer_4="Obj"
+3d_physics/layer_5="Walls"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

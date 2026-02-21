@@ -39,6 +39,7 @@ var loco_state: LocomotionState = LocomotionState.GROUNDED
 @export var snap_length: float = 1.5
 @export var max_velocity: float = 150.0
 @export var slope_launch_boost: float = 10.0
+@export_flags_3d_physics var ignore_align_mask: int = 0 ## Layers that won't trigger rotation or stick
 
 # =================================================
 # CONFIG — SLOPE PHYSICS
@@ -174,19 +175,29 @@ func _physics_process(delta: float) -> void:
 
 	# 3. Per-state alignment & stick
 	if is_wall_running:
-		_align_to_surface(delta, wall_normal)
-		up_direction = wall_normal
-		_apply_floor_stick(delta)
+		if not _surface_is_ignored():
+			_align_to_surface(delta, wall_normal)
+			up_direction = wall_normal
+		else:
+			_align_to_upright(delta)
+			up_direction = Vector3.UP
+		if not _surface_is_ignored():
+			_apply_floor_stick(delta)
 	elif is_on_floor():
-		_align_to_surface(delta, get_floor_normal())
-		up_direction = get_floor_normal()
-		_apply_floor_stick(delta)
+		if not _surface_is_ignored():
+			_align_to_surface(delta, get_floor_normal())
+			up_direction = get_floor_normal()
+		else:
+			_align_to_upright(delta)
+			up_direction = Vector3.UP
+		if not _surface_is_ignored():
+			_apply_floor_stick(delta)
 	else:
 		_align_to_upright(delta)
 		up_direction = Vector3.UP
 
 	# 4. Execution
-	if not is_charging_jump and not is_wall_running:
+	if not is_charging_jump and not is_wall_running and not _surface_is_ignored():
 		apply_floor_snap()
 	move_and_slide()
 
@@ -198,7 +209,6 @@ func _physics_process(delta: float) -> void:
 	_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
 
-
 	if PlayerSFX:
 		PlayerSFX._update_engine_audio(current_speed, max_speed)
 
@@ -206,9 +216,7 @@ func _physics_process(delta: float) -> void:
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
 	if is_on_floor():
-		_update_board_visual(delta, get_floor_normal())
-		# ADDED: only write true ground normal when actually on floor, never during wall run
-		if not is_wall_running:
+		if not is_wall_running and not _surface_is_ignored():
 			_update_board_visual(delta, get_floor_normal())
 		air_time = 0.0
 		grounded_time += delta
@@ -235,6 +243,23 @@ func _update_loco_state() -> void:
 			loco_state = LocomotionState.GROUNDED
 	else:
 		loco_state = LocomotionState.AIRBORNE
+
+# =================================================
+# SURFACE IGNORE CHECK
+# Returns true if every active contact is on a layer in ignore_align_mask.
+# When true, alignment and stick force are skipped for that surface.
+func _surface_is_ignored() -> bool:
+	if ignore_align_mask == 0: return false
+	var count := get_slide_collision_count()
+	if count == 0: return false
+	for i in count:
+		var col := get_slide_collision(i)
+		var collider := col.get_collider()
+		if collider == null: continue
+		# If this collider's layer has ANY bits outside the ignore mask, don't ignore
+		if collider.collision_layer & ~ignore_align_mask:
+			return false
+	return true
 
 # =================================================
 # INPUT — single source of truth, pure reads only
@@ -383,7 +408,7 @@ func _apply_horizontal_movement() -> void:
 	velocity.z = horizontal_forward.z * current_speed
 
 func _apply_slope_momentum(delta: float) -> void:
-	if !is_on_floor(): return
+	if !is_on_floor() or _surface_is_ignored(): return
 	var normal: Vector3 = get_floor_normal()
 	var slope: float = 1.0 - normal.dot(Vector3.UP)
 	if slope < 0.02: return
@@ -393,14 +418,14 @@ func _apply_slope_momentum(delta: float) -> void:
 
 func _apply_surface_gravity(delta: float) -> void:
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
-	if is_on_floor() || get_slide_collision_count() > 0:
-		velocity -=  get_floor_normal() * g * delta
+	if (is_on_floor() || get_slide_collision_count() > 0) and not _surface_is_ignored():
+		velocity -= get_floor_normal() * g * delta
 	else:
 		velocity.y -= g * delta
 
 func _apply_floor_stick(delta: float) -> void:
 	if !(is_on_floor() || is_wall_running): return
-	var stick_normal: Vector3 = wall_normal if is_wall_running else  get_floor_normal()
+	var stick_normal: Vector3 = wall_normal if is_wall_running else get_floor_normal()
 	var stick: float = stick_force
 	if !is_wall_running && velocity.normalized().dot(stick_normal) < 0.1:
 		stick *= 2.0
@@ -432,7 +457,7 @@ func _maintain_wall_speed() -> void:
 
 func _apply_ramp_boost_on_leave() -> void:
 	if was_on_floor && !is_on_floor():
-		var angle_factor: float = 1.0 -  get_floor_normal().dot(Vector3.UP)
+		var angle_factor: float = 1.0 - get_floor_normal().dot(Vector3.UP)
 		if angle_factor > 0.15:
 			velocity += velocity.normalized() * slope_launch_boost * angle_factor
 			_dbg_log("EVENT: Ramp boost — angle_factor: %.2f" % angle_factor)
@@ -470,13 +495,12 @@ func _teleport_to_last_ground() -> void:
 
 # =================================================
 # VISUALS
-func _update_board_visual(delta: float,Vec3:Vector3) -> void:
+func _update_board_visual(delta: float, Vec3: Vector3) -> void:
 	if !board_mesh: return
 	var lean_mult: float = drift_lean_multiplier if loco_state == LocomotionState.DRIFTING else 1.0
 	var speed_percent: float = clamp(current_speed / max_speed, 0.2, 1.2)
 	var target_tilt: float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
-
 
 	# Build forward from character facing, projected onto the ground plane
 	var char_fwd: Vector3 = -global_transform.basis.z
@@ -487,7 +511,7 @@ func _update_board_visual(delta: float,Vec3:Vector3) -> void:
 	var right: Vector3 = fwd.cross(Vec3).normalized()
 	if right.length_squared() < 0.01:
 		right = global_transform.basis.x  # fallback
-	
+
 	var visual_basis: Basis = Basis(right, Vec3, -fwd)
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
 	var total_pitch: float = (crouch_tilt_amount if loco_state == LocomotionState.JUMP_CHARGING else 0.0) + current_air_pitch
