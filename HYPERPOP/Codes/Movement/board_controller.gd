@@ -46,13 +46,7 @@ var loco_state: LocomotionState = LocomotionState.GROUNDED
 @export var slope_accel_strength: float = 22.0
 @export var air_alignment_speed: float = 5.0
 
-# =================================================
-# CONFIG — WALL RUNNING
-@export_category("Wall Running")
-@export var enable_wall_running: bool = true
-@export var wall_run_min_speed: float = 25.0
-@export var wall_stick_force: float = 180.0
-@export var wall_gravity_mul: float = 0.35
+
 
 # =================================================
 # CONFIG — AIR CONTROLS
@@ -68,8 +62,6 @@ var loco_state: LocomotionState = LocomotionState.GROUNDED
 # CONFIG — VISUALS & LEAN
 @export_category("Visuals")
 @export var board_mesh: Node3D
-@export var board_target: Node3D
-@export var Rider_Model: Node3D
 @export var visual_spring_strength: float = 350.0
 @export var visual_spring_damping: float = 30.0
 @export_group("Lean Settings")
@@ -408,7 +400,6 @@ func _apply_slope_momentum(delta: float) -> void:
 # OLD: direct velocity subtraction
 func _apply_surface_gravity(delta: float) -> void:
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mul
-	if is_wall_running: g *= wall_gravity_mul
 	if is_on_floor() || get_slide_collision_count() > 0:
 		velocity -= last_surface_normal * g * delta
 	else:
@@ -418,7 +409,7 @@ func _apply_surface_gravity(delta: float) -> void:
 func _apply_floor_stick(delta: float) -> void:
 	if !(is_on_floor() || is_wall_running): return
 	var stick_normal: Vector3 = wall_normal if is_wall_running else last_surface_normal
-	var stick: float = wall_stick_force if is_wall_running else stick_force
+	var stick: float = stick_force
 	if !is_wall_running && velocity.normalized().dot(stick_normal) < 0.1:
 		stick *= 2.0
 	velocity -= stick_normal * stick * delta
@@ -427,7 +418,7 @@ func _apply_floor_stick(delta: float) -> void:
 # WALL RUNNING
 # OLD: uses enable_wall_running bool, no wall_attached state
 func _detect_wall_running() -> void:
-	if !enable_wall_running || is_on_floor() || current_speed < wall_run_min_speed:
+	if  is_on_floor():
 		is_wall_running = false
 		return
 	var found_wall: bool = false
@@ -446,7 +437,7 @@ func _detect_wall_running() -> void:
 func _maintain_wall_speed() -> void:
 	if !is_wall_running: return
 	velocity = velocity.slide(wall_normal).normalized() * current_speed
-	velocity -= wall_normal * wall_stick_force * get_physics_process_delta_time()
+	velocity -= wall_normal * stick_force * get_physics_process_delta_time()
 
 # OLD: uses slope_launch_boost
 func _apply_ramp_boost_on_leave() -> void:
