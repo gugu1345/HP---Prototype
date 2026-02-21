@@ -24,7 +24,8 @@
 [ext_resource type="AudioStream" uid="uid://ds52lg0tnhay2" path="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/engine.wav" id="22_hwsgt"]
 [ext_resource type="AudioStream" uid="uid://djg1wuheud6tn" path="res://HYPERPOP/Assets/Sounds/Gameplay Sounds/TestSounds/SRN_player_se-005-Synth-player_se-player_002_break_wav.wav" id="23_sek2j"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_ivycn"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_nlt7y"]
+size = Vector3(1, 0.7706299, 4.1567993)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0h2nr"]
 resource_name = "Material.002"
@@ -9365,7 +9366,8 @@ PlayerSFX = NodePath("Sound")
 debug_console_log = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1370903136]
-shape = SubResource("SphereShape3D_ivycn")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35943604, 0.07601929)
+shape = SubResource("BoxShape3D_nlt7y")
 
 [node name="RyderGear" parent="." unique_id=712845337 instance=ExtResource("2_5q8gg")]
 

@@ -513,6 +513,27 @@ func _update_debug(delta: float) -> void:
 			drift_charge * 100.0
 		])
 
+		# Ground object name
+		var ground_name: String = "none"
+		if is_on_floor():
+			for i in get_slide_collision_count():
+				var col = get_slide_collision(i)
+				if col.get_normal().dot(Vector3.UP) > 0.5:
+					ground_name = col.get_collider().name
+					break
+
+		# Board mesh debug
+		if board_mesh:
+			var floor_normal: Vector3 = get_floor_normal() if is_on_floor() else Vector3.DOWN
+			print("[BoardMesh] ground=%s  vec3(floor_normal)=%s  tilt=%.3f  pitch=%.3f" % [
+				ground_name,
+				floor_normal,
+				current_tilt,
+				current_air_pitch
+			])
+		else:
+			print("[BoardMesh] WARNING: board_mesh is null!")
+
 func _make_bar(value: float, max_val: float, width: int) -> String:
 	var filled := int(clamp(value / max_val, 0.0, 1.0) * width)
 	return "[" + "█".repeat(filled) + "░".repeat(width - filled) + "]"
