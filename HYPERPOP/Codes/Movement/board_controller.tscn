@@ -9355,10 +9355,13 @@ size = Vector3(1.21, 0.185, 3.635)
 transparency = 1
 albedo_color = Color(0.3019608, 0.5411765, 0.9254902, 0.25882354)
 
-[node name="BoardController" type="CharacterBody3D" unique_id=723564920 node_paths=PackedStringArray("board_mesh")]
+[node name="BoardController" type="CharacterBody3D" unique_id=723564920 node_paths=PackedStringArray("board_mesh", "Cam", "PlayerSFX")]
+floor_block_on_wall = false
 floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
 board_mesh = NodePath("RyderGear")
+Cam = NodePath("Camera3D")
+PlayerSFX = NodePath("Sound")
 debug_console_log = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1370903136]
