@@ -21,10 +21,11 @@ func handle_visual(delta):
 	upright_basis.z = -forward
 	upright_basis.x = forward.cross(Vector3.UP).normalized()
 	upright_basis.y = Vector3.UP
+	upright_basis = upright_basis.orthonormalized()
 
 	var uprightness = 0.8 
-	var blended_basis = target_transform.basis.slerp(upright_basis, uprightness)
-	global_transform.basis = global_transform.basis.slerp(blended_basis, 0.15)
+	var blended_basis = target_transform.basis.orthonormalized().slerp(upright_basis, uprightness)
+	global_transform.basis = global_transform.basis.orthonormalized().slerp(blended_basis.orthonormalized(), 0.15)
 	
 	var target_pos = target.global_position
 	var current_pos = global_position
