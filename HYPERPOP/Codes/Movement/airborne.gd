@@ -37,6 +37,17 @@ func _update_jump_state() -> void:
 	elif not inp_jump_held:
 		is_charging_jump = false
 
+
+# =================================================
+# AIR CONTROLS (PITCH)
+func _update_air_pitch(delta: float) -> void:
+	var target_pitch: float = 0.0
+	if !is_on_floor() && !is_wall_running:
+		target_pitch = inp_pitch * deg_to_rad(air_pitch_max_angle)
+	var lerp_speed: float = air_pitch_responsiveness if (!is_on_floor() && !is_wall_running) else air_pitch_return_speed
+	current_air_pitch = lerp(current_air_pitch, target_pitch, lerp_speed * delta)
+
+
 # =================================================
 # JUMP
 func _execute_jump() -> void:
