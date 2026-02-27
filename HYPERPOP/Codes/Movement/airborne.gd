@@ -1,5 +1,10 @@
-extends Behavior
-class_name Jump
+extends BoardState
+class_name Airborne
+
+# =================================================
+# STATE
+var air_time: float = 0.0
+var is_charging_jump: bool = false
 
 # =================================================
 # CONFIG — JUMP & CHARGE
@@ -7,6 +12,14 @@ class_name Jump
 @export var min_jump_force: float = 12.0
 @export var max_jump_force: float = 35.0
 @export var jump_charge_drag: float = 0.3
+
+# =================================================
+# MAIN LOOP
+func _physics_process(delta: float) -> void:
+	if PlayerSFX:
+		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
+	
+	_update_jump_state()
 
 # =================================================
 # JUMP STATE

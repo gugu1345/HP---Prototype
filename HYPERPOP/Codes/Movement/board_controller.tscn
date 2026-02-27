@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://bc223at72mrm5" path="res://HYPERPOP/Codes/Movement/board_controller.gd" id="1_mkhe7"]
 [ext_resource type="PackedScene" uid="uid://cvtc0mruf85u5" path="res://HYPERPOP/Assets/Characters/Ryder/RyderGear.fbx" id="2_5q8gg"]
-[ext_resource type="Script" uid="uid://do8q2axv38blx" path="res://HYPERPOP/Codes/Movement/behavior.gd" id="2_tj2nd"]
-[ext_resource type="Script" uid="uid://cs0kqmbdnsc6d" path="res://HYPERPOP/Codes/Movement/jump.gd" id="2_vjvt4"]
+[ext_resource type="Script" uid="uid://do8q2axv38blx" path="res://HYPERPOP/Codes/Movement/board_state.gd" id="2_tj2nd"]
+[ext_resource type="Script" uid="uid://cs0kqmbdnsc6d" path="res://HYPERPOP/Codes/Movement/airborne.gd" id="2_vjvt4"]
 [ext_resource type="Texture2D" uid="uid://bcd0gj8dir5bc" path="res://HYPERPOP/Assets/Characters/Ryder/Ryder'sGear.png" id="3_641vk"]
 [ext_resource type="PackedScene" uid="uid://ccgeobpyr3ptc" path="res://HYPERPOP/Assets/Particles/Hover/SpriteSparks_Packed.tscn" id="3_g3562"]
 [ext_resource type="PackedScene" uid="uid://fsffcw4ytxtl" path="res://HYPERPOP/Assets/Characters/Ryder/RyderModel.fbx" id="3_nl2x1"]
@@ -9402,11 +9402,19 @@ drift_deceleration_rate = null
 debug_enabled = null
 debug_console_log = null
 
-[node name="Behavior" type="Node3D" parent="." unique_id=976328866]
+[node name="BoardState" type="Node3D" parent="." unique_id=976328866]
 script = ExtResource("2_tj2nd")
 
-[node name="Jump" type="Node3D" parent="Behavior" unique_id=1981056329]
+[node name="Grounded" type="Node3D" parent="BoardState" unique_id=1080040700]
+
+[node name="Drifting" type="Node3D" parent="BoardState" unique_id=329558943]
+
+[node name="Jump_Charging" type="Node3D" parent="BoardState" unique_id=1269362961]
+
+[node name="Airborne" type="Node3D" parent="BoardState" unique_id=1981056329]
 script = ExtResource("2_vjvt4")
+
+[node name="Wall_Running" type="Node3D" parent="BoardState" unique_id=470129198]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1370903136]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35943604, 0.07601929)

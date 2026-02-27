@@ -23,7 +23,6 @@ var loco_state: LocomotionState = LocomotionState.GROUNDED
 @export var rotation_speed: float = 1.5
 @export var rotation_smoothing: float = 12.0
 
-
 # =================================================
 # CONFIG — PHYSICS
 @export_category("Physics")
@@ -92,8 +91,6 @@ var _debug_console_throttle: float = 0.0
 var current_speed: float = 0.0
 var smoothed_input_x: float = 0.0
 var was_on_floor: bool = true
-var air_time: float = 0.0
-var is_charging_jump: bool = false
 var current_tilt: float = 0.0
 var is_drifting: bool = false
 var drift_charge: float = 0.0
@@ -119,6 +116,9 @@ var inp_pitch: float = 0.0
 # =================================================
 # READY
 func _ready() -> void:
+	# Start in Idle state on game start
+	_update_loco_state(LocomotionState.GROUNDED)
+	
 	floor_max_angle = deg_to_rad(130)
 	floor_snap_length = snap_length
 	floor_stop_on_slope = false
@@ -144,12 +144,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
 	_read_input(delta)
-	if PlayerSFX:
-		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
+	
 
 	_update_drift(delta)
 	_update_speed(delta)
-	_update_jump_state()
+	
 	_update_air_pitch(delta)
 	_update_loco_state()
 
@@ -223,9 +222,10 @@ func _physics_process(delta: float) -> void:
 	if debug_enabled:
 		_update_debug(delta)
 
+
 # =================================================
 # LOCOMOTION STATE RESOLVER
-func _update_loco_state() -> void:
+func _update_loco_state(new_loco: LocomotionState) -> void:
 	if is_wall_running:
 		loco_state = LocomotionState.WALL_RUNNING
 	elif is_on_floor():
