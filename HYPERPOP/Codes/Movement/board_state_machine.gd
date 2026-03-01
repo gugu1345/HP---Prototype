@@ -16,7 +16,6 @@ func _ready() -> void:
 	if initial_state:
 		initial_state.enter_state()
 		current_state = initial_state
-		
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

@@ -2,5 +2,11 @@ extends BoardState
 class_name Airborne
 
 
-func _physics_process(delta: float) -> void:
+func enter_state() -> void:
+	pass
+
+func exit_state() -> void:
+	pass
+
+func physics_process(delta: float) -> void:
 	pass

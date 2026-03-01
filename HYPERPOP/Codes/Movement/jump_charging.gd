@@ -2,6 +2,11 @@ extends BoardState
 class_name JumpCharging
 
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _physics_process(delta: float) -> void:
+func enter_state() -> void:
+	pass
+
+func exit_state() -> void:
+	pass
+
+func physics_process(delta: float) -> void:
 	pass

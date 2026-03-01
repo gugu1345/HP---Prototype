@@ -2,9 +2,11 @@ extends BoardState
 class_name Grounded
 
 
-func _ready() -> void:
+func enter_state() -> void:
 	pass
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _physics_process(delta: float) -> void:
+func exit_state() -> void:
+	pass
+
+func physics_process(delta: float) -> void:
 	pass
