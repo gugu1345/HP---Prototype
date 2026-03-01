@@ -8,5 +8,5 @@ func enter_state() -> void:
 func exit_state() -> void:
 	pass
 
-func physics_process(delta: float) -> void:
+func physics_process(_delta: float) -> void:
 	pass

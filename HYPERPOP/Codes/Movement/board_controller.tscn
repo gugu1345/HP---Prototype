@@ -9367,8 +9367,9 @@ floor_block_on_wall = false
 floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
 
-[node name="BoardStateMachine" type="Node" parent="." unique_id=1629041993]
+[node name="BoardStateMachine" type="Node" parent="." unique_id=1535564651 node_paths=PackedStringArray("initial_state")]
 script = ExtResource("2_sek2j")
+initial_state = NodePath("Grounded")
 
 [node name="Grounded" type="Node" parent="BoardStateMachine" unique_id=337039312]
 script = ExtResource("3_sek2j")

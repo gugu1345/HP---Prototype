@@ -1,5 +1,5 @@
 # Finite State Machine. https://www.youtube.com/watch?v=ow_Lum-Agbs
-extends BoardController
+extends Node
 class_name BoardStateMachine
 
 @export var initial_state : BoardState
@@ -21,7 +21,7 @@ func _ready() -> void:
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta: float) -> void:
 	if current_state:
-		current_state._physics_process(delta)
+		current_state.physics_process(delta)
 
 func transition(state, new_state_name):
 	if state != current_state:
