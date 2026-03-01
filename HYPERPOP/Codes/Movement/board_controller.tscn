@@ -2,13 +2,14 @@
 
 [ext_resource type="Script" uid="uid://bc223at72mrm5" path="res://HYPERPOP/Codes/Movement/board_controller.gd" id="1_mkhe7"]
 [ext_resource type="PackedScene" uid="uid://cvtc0mruf85u5" path="res://HYPERPOP/Assets/Characters/Ryder/RyderGear.fbx" id="2_5q8gg"]
-[ext_resource type="Script" uid="uid://do8q2axv38blx" path="res://HYPERPOP/Codes/Movement/board_state.gd" id="2_tj2nd"]
+[ext_resource type="Script" uid="uid://ckpvcf47oxmjs" path="res://HYPERPOP/Codes/Movement/board_state_machine.gd" id="2_sek2j"]
 [ext_resource type="Script" uid="uid://cs0kqmbdnsc6d" path="res://HYPERPOP/Codes/Movement/airborne.gd" id="2_vjvt4"]
 [ext_resource type="Script" uid="uid://5uhhcusqq3cc" path="res://HYPERPOP/Codes/Movement/jump_charging.gd" id="3_70pc1"]
 [ext_resource type="Texture2D" uid="uid://bcd0gj8dir5bc" path="res://HYPERPOP/Assets/Characters/Ryder/Ryder'sGear.png" id="3_641vk"]
 [ext_resource type="PackedScene" uid="uid://ccgeobpyr3ptc" path="res://HYPERPOP/Assets/Particles/Hover/SpriteSparks_Packed.tscn" id="3_g3562"]
 [ext_resource type="Script" uid="uid://mphuqqcmd2r1" path="res://HYPERPOP/Codes/Movement/drifting.gd" id="3_hhrmh"]
 [ext_resource type="PackedScene" uid="uid://fsffcw4ytxtl" path="res://HYPERPOP/Assets/Characters/Ryder/RyderModel.fbx" id="3_nl2x1"]
+[ext_resource type="Script" uid="uid://ctdo2kopt40xa" path="res://HYPERPOP/Codes/Movement/grounded.gd" id="3_sek2j"]
 [ext_resource type="Script" uid="uid://qkr5vaolsm37" path="res://HYPERPOP/Codes/Movement/PlaySoundFX.gd" id="3_yajaa"]
 [ext_resource type="Script" uid="uid://cksoxjg2r74e0" path="res://HYPERPOP/Assets/Characters/Ryder/model_lerp.gd" id="4_bpovt"]
 [ext_resource type="Texture2D" uid="uid://dgyd8uepklb3g" path="res://HYPERPOP/Assets/Characters/Ryder/Outline.png" id="4_wmvvi"]
@@ -9365,61 +9366,23 @@ albedo_color = Color(0.3019608, 0.5411765, 0.9254902, 0.25882354)
 floor_block_on_wall = false
 floor_max_angle = 1.5707964
 script = ExtResource("1_mkhe7")
-max_speed = null
-acceleration = null
-braking = null
-friction = null
-air_drag = null
-rotation_speed = null
-rotation_smoothing = null
-min_jump_force = null
-max_jump_force = null
-jump_charge_drag = null
-gravity_mul = null
-stick_force = null
-slope_alignment_speed = null
-snap_length = null
-max_velocity = null
-slope_launch_boost = null
-ignore_align_mask = null
-slope_accel_strength = null
-air_alignment_speed = null
-air_rotation_multiplier = null
-air_pitch_max_angle = null
-air_pitch_responsiveness = null
-air_pitch_return_speed = null
-dive_speed_gain = null
-pull_up_speed_loss = null
-visual_spring_strength = null
-visual_spring_damping = null
-max_lean_angle = null
-drift_lean_multiplier = null
-lean_responsiveness = null
-crouch_tilt_amount = null
-drift_min_speed = null
-drift_turn_multiplier = null
-drift_max_charge_time = null
-drift_dash_force = null
-drift_dash_duration = null
-drift_deceleration_rate = null
-debug_enabled = null
-debug_console_log = null
 
-[node name="BoardState" type="Node3D" parent="." unique_id=976328866]
-script = ExtResource("2_tj2nd")
+[node name="BoardStateMachine" type="Node" parent="." unique_id=1629041993]
+script = ExtResource("2_sek2j")
 
-[node name="Grounded" type="Node3D" parent="BoardState" unique_id=1080040700]
+[node name="Grounded" type="Node" parent="BoardStateMachine" unique_id=337039312]
+script = ExtResource("3_sek2j")
 
-[node name="Drifting" type="Node3D" parent="BoardState" unique_id=329558943]
+[node name="Drifting" type="Node" parent="BoardStateMachine" unique_id=1028466627]
 script = ExtResource("3_hhrmh")
 
-[node name="Jump_Charging" type="Node3D" parent="BoardState" unique_id=1269362961]
+[node name="Jump_Charging" type="Node" parent="BoardStateMachine" unique_id=1904680767]
 script = ExtResource("3_70pc1")
 
-[node name="Airborne" type="Node3D" parent="BoardState" unique_id=1981056329]
+[node name="Airborne" type="Node" parent="BoardStateMachine" unique_id=1274368429]
 script = ExtResource("2_vjvt4")
 
-[node name="Wall_Running" type="Node3D" parent="BoardState" unique_id=470129198]
+[node name="Wall_Running" type="Node" parent="BoardStateMachine" unique_id=525395192]
 script = ExtResource("6_hwsgt")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1370903136]
