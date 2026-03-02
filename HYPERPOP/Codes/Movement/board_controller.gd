@@ -2,15 +2,13 @@ extends CharacterBody3D
 class_name BoardController
 
 # =================================================
-# LOCOMOTION STATE ENUM
-enum LocomotionState {
-	GROUNDED,       # on floor, normal movement
-	DRIFTING,       # on floor, drifting
-	JUMP_CHARGING,  # on floor, charging a jump
-	AIRBORNE,       # in the air
-	WALL_RUNNING    # running along a wall
-}
-var loco_state: LocomotionState = LocomotionState.GROUNDED
+# LOCOMOTION STATE
+	#GROUNDED,       # on floor, normal movement
+	#DRIFTING,       # on floor, drifting
+	#JUMP_CHARGING,  # on floor, charging a jump
+	#AIRBORNE,       # in the air
+	#WALL_RUNNING    # running along a wall
+@export var loco_state_machine: BoardStateMachine
 
 # =================================================
 # CONFIG — MOTION
@@ -202,7 +200,8 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if Cam:
-		Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
+		Cam._update_camera_logic(delta, loco_state_machine.get_current_state() == Drifting)
+		#Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
 
 	# 5. Post-move logic
 	_maintain_wall_speed()
@@ -233,16 +232,21 @@ func _physics_process(delta: float) -> void:
 # LOCOMOTION STATE RESOLVER
 func _update_loco_state() -> void:
 	if is_wall_running:
-		loco_state = LocomotionState.WALL_RUNNING
+		loco_state_machine.change_state("Wall_Running")
+		#loco_state = LocomotionState.WALL_RUNNING
 	elif is_on_floor():
 		if is_charging_jump:
-			loco_state = LocomotionState.JUMP_CHARGING
+			loco_state_machine.change_state("Jump_Charging")
+			#loco_state = LocomotionState.JUMP_CHARGING
 		elif is_drifting:
-			loco_state = LocomotionState.DRIFTING
+			loco_state_machine.change_state("Drifting")
+			#loco_state = LocomotionState.DRIFTING
 		else:
-			loco_state = LocomotionState.GROUNDED
+			loco_state_machine.change_state("Grounded")
+			#loco_state = LocomotionState.GROUNDED
 	else:
-		loco_state = LocomotionState.AIRBORNE
+		loco_state_machine.change_state("Airborne")
+		#loco_state = LocomotionState.AIRBORNE
 
 # =================================================
 # SURFACE IGNORE CHECK
@@ -360,12 +364,14 @@ func _update_speed(delta: float) -> void:
 		dash_timer -= delta
 		current_speed = dash_velocity
 		return
-
-	if loco_state == LocomotionState.JUMP_CHARGING:
+	
+	#loco_state == LocomotionState.JUMP_CHARGING:
+	if loco_state_machine.get_current_state() == JumpCharging:
 		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
 		return
 
-	if loco_state == LocomotionState.DRIFTING:
+	#loco_state == LocomotionState.DRIFTING:
+	if loco_state_machine.get_current_state() == Drifting:
 		return
 
 	if inp_throttle > 0:
@@ -389,8 +395,10 @@ func _update_speed(delta: float) -> void:
 # =================================================
 # PHYSICS & ROTATION
 func _apply_rotation(delta: float) -> void:
-	var turn_scale: float = 0.5 if loco_state == LocomotionState.JUMP_CHARGING else 1.0
-	if loco_state == LocomotionState.DRIFTING:
+	#loco_state == LocomotionState.JUMP_CHARGING
+	var turn_scale: float = 0.5 if loco_state_machine.get_current_state() == JumpCharging else 1.0
+	#loco_state == LocomotionState.DRIFTING
+	if loco_state_machine.get_current_state() == Drifting:
 		turn_scale *= drift_turn_multiplier
 	if !is_on_floor() && !is_wall_running:
 		turn_scale *= air_rotation_multiplier
@@ -497,7 +505,8 @@ func _teleport_to_last_ground() -> void:
 # VISUALS
 func _update_board_visual(delta: float, Vec3: Vector3) -> void:
 	if !board_mesh: return
-	var lean_mult: float = drift_lean_multiplier if loco_state == LocomotionState.DRIFTING else 1.0
+	#loco_state == LocomotionState.DRIFTING
+	var lean_mult: float = drift_lean_multiplier if loco_state_machine.get_current_state() == Drifting else 1.0
 	var speed_percent: float = clamp(current_speed / max_speed, 0.2, 1.2)
 	var target_tilt: float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
@@ -514,7 +523,8 @@ func _update_board_visual(delta: float, Vec3: Vector3) -> void:
 
 	var visual_basis: Basis = Basis(right, Vec3, -fwd)
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	var total_pitch: float = (crouch_tilt_amount if loco_state == LocomotionState.JUMP_CHARGING else 0.0) + current_air_pitch
+	#loco_state == LocomotionState.JUMP_CHARGING
+	var total_pitch: float = (crouch_tilt_amount if loco_state_machine.get_current_state() == JumpCharging else 0.0) + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
@@ -529,7 +539,8 @@ func _update_debug(delta: float) -> void:
 	if debug_console_log and _debug_console_throttle <= 0.0:
 		_debug_console_throttle = 1.0
 		print("[Board] state=%-14s speed=%5.1f air=%.2fs wall_run=%s drift=%s drift_charge=%.0f%%" % [
-			LocomotionState.keys()[loco_state],
+			#LocomotionState.keys()[loco_state],
+			loco_state_machine.get_current_state(),
 			current_speed,
 			air_time,
 			"Y" if is_wall_running else "N",

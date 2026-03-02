@@ -1,6 +1,7 @@
 extends BoardState
 class_name WallRunning
 
+@onready var player: BoardController = get_parent().get_parent()
 
 func enter_state() -> void:
 	pass
