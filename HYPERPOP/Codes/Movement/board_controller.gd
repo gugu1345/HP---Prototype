@@ -153,7 +153,7 @@ func _physics_process(delta: float) -> void:
 
 	#_update_drift(delta)
 	_update_speed(delta)
-	#_update_jump_state()
+	_update_jump_state()
 	#_update_air_pitch(delta)
 	#_update_loco_state()
 
@@ -280,19 +280,19 @@ func _read_input(delta: float) -> void:
 
 # =================================================
 # JUMP STATE
-#func _update_jump_state() -> void:
-	#var can_jump = is_on_floor()
-#
-	#if is_charging_jump and inp_jump_just_released:
-		#_dbg_log("EVENT: Jump launched — charge: %.2f" % (PlayerSFX.current_jump_charge if PlayerSFX else 1.0))
-		#_execute_jump()
-		#is_charging_jump = false
-		#return
-#
-	#if can_jump and inp_jump_held:
-		#is_charging_jump = true
-	#elif not inp_jump_held:
-		#is_charging_jump = false
+func _update_jump_state() -> void:
+	var can_jump = is_on_floor()
+
+	if is_charging_jump and inp_jump_just_released:
+		_dbg_log("EVENT: Jump launched — charge: %.2f" % (PlayerSFX.current_jump_charge if PlayerSFX else 1.0))
+		_execute_jump()
+		is_charging_jump = false
+		return
+
+	if can_jump and inp_jump_held:
+		is_charging_jump = true
+	elif not inp_jump_held:
+		is_charging_jump = false
 
 ## =================================================
 ## AIR CONTROLS (PITCH)
@@ -305,23 +305,23 @@ func _read_input(delta: float) -> void:
 
 # =================================================
 # JUMP
-#func _execute_jump() -> void:
-	#var charge_val: float = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
-	#var force: float = lerp(min_jump_force, max_jump_force, charge_val)
-#
-	#if is_wall_running && wall_normal != Vector3.ZERO:
-		#velocity += wall_normal * force * 1.4
-		#velocity.y += force * 0.5
-		#is_wall_running = false
-		#_on_wall_run_exit()
-		#_dbg_log("EVENT: Wall jump — force: %.1f, wall_normal: %s" % [force, wall_normal])
-	#else:
-		#velocity += Vector3.UP * force
-		#_dbg_log("EVENT: Standard jump — force: %.1f" % force)
-#
-	#if PlayerSFX:
-		#PlayerSFX.play_jump_launch()
-		#PlayerSFX.current_jump_charge = 0.0
+func _execute_jump() -> void:
+	var charge_val: float = PlayerSFX.current_jump_charge if PlayerSFX else 1.0
+	var force: float = lerp(min_jump_force, max_jump_force, charge_val)
+
+	if is_wall_running && wall_normal != Vector3.ZERO:
+		velocity += wall_normal * force * 1.4
+		velocity.y += force * 0.5
+		is_wall_running = false
+		_on_wall_run_exit()
+		_dbg_log("EVENT: Wall jump — force: %.1f, wall_normal: %s" % [force, wall_normal])
+	else:
+		velocity += Vector3.UP * force
+		_dbg_log("EVENT: Standard jump — force: %.1f" % force)
+
+	if PlayerSFX:
+		PlayerSFX.play_jump_launch()
+		PlayerSFX.current_jump_charge = 0.0
 
 func _handle_landing(delta: float) -> void:
 	if !is_on_floor():

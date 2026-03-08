@@ -9,6 +9,9 @@ var current_state : BoardState
 var states : Dictionary[String, BoardState] = {}
 
 func _ready() -> void:
+	if initial_state == null:
+		push_error("initial_state is empty, choose an initial state")
+	
 	for child in get_children():
 		if child is BoardState:
 			child.loco_state_machine = self

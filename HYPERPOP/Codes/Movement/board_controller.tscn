@@ -9370,7 +9370,7 @@ loco_state_machine = NodePath("BoardStateMachine")
 
 [node name="BoardStateMachine" type="Node" parent="." unique_id=1535564651 node_paths=PackedStringArray("initial_state")]
 script = ExtResource("2_sek2j")
-initial_state = NodePath("Grounded")
+initial_state = NodePath("Airborne")
 
 [node name="Grounded" type="Node" parent="BoardStateMachine" unique_id=337039312]
 script = ExtResource("3_sek2j")

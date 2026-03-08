@@ -34,7 +34,7 @@ func _update_loco_state() -> void:
 		else:
 			loco_state_machine.change_state("Grounded")
 	else:
-		loco_state_machine.change_state("Airborne")
+		return
 
 
 # =================================================

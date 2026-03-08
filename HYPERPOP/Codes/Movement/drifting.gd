@@ -28,7 +28,7 @@ func _update_loco_state() -> void:
 		if player.is_charging_jump:
 			loco_state_machine.change_state("Jump_Charging")
 		elif player.is_drifting:
-			loco_state_machine.change_state("Drifting")
+			return
 		else:
 			loco_state_machine.change_state("Grounded")
 	else:

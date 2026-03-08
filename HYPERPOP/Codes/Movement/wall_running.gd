@@ -30,7 +30,7 @@ func physics_process(delta: float) -> void:
 # LOCOMOTION STATE RESOLVER
 func _update_loco_state() -> void:
 	if player.is_wall_running:
-		loco_state_machine.change_state("Wall_Running")
+		return
 	elif player.is_on_floor():
 		if player.is_charging_jump:
 			loco_state_machine.change_state("Jump_Charging")

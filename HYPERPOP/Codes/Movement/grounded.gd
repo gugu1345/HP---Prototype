@@ -32,7 +32,7 @@ func _update_loco_state() -> void:
 		elif player.is_drifting:
 			loco_state_machine.change_state("Drifting")
 		else:
-			loco_state_machine.change_state("Grounded")
+			return
 	else:
 		loco_state_machine.change_state("Airborne")
 
