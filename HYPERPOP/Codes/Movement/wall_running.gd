@@ -4,13 +4,6 @@ class_name WallRunning
 @onready var player: BoardController = get_parent().get_parent()
 
 
-# =================================================
-# STATE
-
-# =================================================
-# CENTRALISED INPUT STATE — populated once per frame in _read_input()
-
-
 func enter_state() -> void:
 	print_debug("Enter Wall_Running")
 
@@ -19,7 +12,8 @@ func exit_state() -> void:
 
 func physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
-	_read_input(delta)
+	player._read_input(delta)
+	_update_loco_state()
 	
 	_update_speed(delta)
 	
@@ -31,10 +25,22 @@ func physics_process(delta: float) -> void:
 	_apply_ramp_boost_on_leave()
 	player.move_and_slide()
 
+
 # =================================================
-# INPUT — single source of truth, pure reads only
-func _read_input(delta: float) -> void:
-	pass
+# LOCOMOTION STATE RESOLVER
+func _update_loco_state() -> void:
+	if player.is_wall_running:
+		loco_state_machine.change_state("Wall_Running")
+	elif player.is_on_floor():
+		if player.is_charging_jump:
+			loco_state_machine.change_state("Jump_Charging")
+		elif player.is_drifting:
+			loco_state_machine.change_state("Drifting")
+		else:
+			loco_state_machine.change_state("Grounded")
+	else:
+		loco_state_machine.change_state("Airborne")
+
 
 # =================================================
 # SPEED

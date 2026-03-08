@@ -4,13 +4,6 @@ class_name Airborne
 @onready var player: BoardController = get_parent().get_parent()
 
 
-# =================================================
-# STATE
-
-# =================================================
-# CENTRALISED INPUT STATE — populated once per frame in _read_input()
-
-
 func enter_state() -> void:
 	print_debug("Enter Airborne")
 
@@ -19,17 +12,30 @@ func exit_state() -> void:
 
 func physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
-	_read_input(delta)
+	player._read_input(delta)
+	_update_loco_state()
 	
 	_update_speed(delta)
 	
 	_update_air_pitch(delta)
 	player.move_and_slide()
 
+
 # =================================================
-# INPUT — single source of truth, pure reads only
-func _read_input(delta: float) -> void:
-	pass
+# LOCOMOTION STATE RESOLVER
+func _update_loco_state() -> void:
+	if player.is_wall_running:
+		loco_state_machine.change_state("Wall_Running")
+	elif player.is_on_floor():
+		if player.is_charging_jump:
+			loco_state_machine.change_state("Jump_Charging")
+		elif player.is_drifting:
+			loco_state_machine.change_state("Drifting")
+		else:
+			loco_state_machine.change_state("Grounded")
+	else:
+		loco_state_machine.change_state("Airborne")
+
 
 # =================================================
 # SPEED
@@ -48,6 +54,6 @@ func _update_speed(delta: float) -> void:
 func _update_air_pitch(delta: float) -> void:
 	var target_pitch: float = 0.0
 	if !player.is_on_floor() && !player.is_wall_running:
-		player.target_pitch = player.inp_pitch * deg_to_rad(player.air_pitch_max_angle)
+		target_pitch = player.inp_pitch * deg_to_rad(player.air_pitch_max_angle)
 	var lerp_speed: float = player.air_pitch_responsiveness if (!player.is_on_floor() && !player.is_wall_running) else player.air_pitch_return_speed
 	player.current_air_pitch = lerp(player.current_air_pitch, target_pitch, lerp_speed * delta)

@@ -112,12 +112,12 @@ var grounded_time: float = 0.0
 
 # =================================================
 # CENTRALISED INPUT STATE — populated once per frame in _read_input()
-#var inp_throttle: float = 0.0
-#var inp_brake: float = 0.0
+var inp_throttle: float = 0.0
+var inp_brake: float = 0.0
 var inp_steer: float = 0.0
-#var inp_drift: bool = false
-#var inp_jump_held: bool = false
-#var inp_jump_just_released: bool = false
+var inp_drift: bool = false
+var inp_jump_held: bool = false
+var inp_jump_just_released: bool = false
 var inp_pitch: float = 0.0
 
 # =================================================
@@ -230,25 +230,23 @@ func _physics_process(delta: float) -> void:
 
 # =================================================
 # LOCOMOTION STATE RESOLVER
-# Do not use
-# TODO: Move them to what happen when they enter state
-func _update_loco_state() -> void:
-	if is_wall_running:
-		loco_state_machine.change_state("Wall_Running")
-		#loco_state = LocomotionState.WALL_RUNNING
-	elif is_on_floor():
-		if is_charging_jump:
-			loco_state_machine.change_state("Jump_Charging")
-			#loco_state = LocomotionState.JUMP_CHARGING
-		elif is_drifting:
-			loco_state_machine.change_state("Drifting")
-			#loco_state = LocomotionState.DRIFTING
-		else:
-			loco_state_machine.change_state("Grounded")
-			#loco_state = LocomotionState.GROUNDED
-	else:
-		loco_state_machine.change_state("Airborne")
-		#loco_state = LocomotionState.AIRBORNE
+#func _update_loco_state() -> void:
+	#if is_wall_running:
+		#loco_state_machine.change_state("Wall_Running")
+		##loco_state = LocomotionState.WALL_RUNNING
+	#elif is_on_floor():
+		#if is_charging_jump:
+			#loco_state_machine.change_state("Jump_Charging")
+			##loco_state = LocomotionState.JUMP_CHARGING
+		#elif is_drifting:
+			#loco_state_machine.change_state("Drifting")
+			##loco_state = LocomotionState.DRIFTING
+		#else:
+			#loco_state_machine.change_state("Grounded")
+			##loco_state = LocomotionState.GROUNDED
+	#else:
+		#loco_state_machine.change_state("Airborne")
+		##loco_state = LocomotionState.AIRBORNE
 
 # =================================================
 # SURFACE IGNORE CHECK
@@ -269,16 +267,16 @@ func _surface_is_ignored() -> bool:
 
 # =================================================
 # INPUT — single source of truth, pure reads only
-#func _read_input(delta: float) -> void:
-	#inp_throttle           = Input.get_action_strength("throttle")
-	#inp_brake              = Input.get_action_strength("brake")
-	#inp_steer              = Input.get_action_strength("left") - Input.get_action_strength("right")
-	#inp_drift              = Input.is_action_pressed("drift")
-	#inp_jump_held          = Input.is_action_pressed("Jump")
-	#inp_jump_just_released = Input.is_action_just_released("Jump")
-	#inp_pitch              = inp_throttle - inp_brake
+func _read_input(delta: float) -> void:
+	inp_throttle           = Input.get_action_strength("throttle")
+	inp_brake              = Input.get_action_strength("brake")
+	inp_steer              = Input.get_action_strength("left") - Input.get_action_strength("right")
+	inp_drift              = Input.is_action_pressed("drift")
+	inp_jump_held          = Input.is_action_pressed("Jump")
+	inp_jump_just_released = Input.is_action_just_released("Jump")
+	inp_pitch              = inp_throttle - inp_brake
 
-	#smoothed_input_x = lerp(smoothed_input_x, inp_steer, rotation_smoothing * delta)
+	smoothed_input_x = lerp(smoothed_input_x, inp_steer, rotation_smoothing * delta)
 
 # =================================================
 # JUMP STATE
