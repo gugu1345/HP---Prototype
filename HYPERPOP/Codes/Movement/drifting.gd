@@ -15,6 +15,8 @@ func physics_process(delta: float) -> void:
 	player._read_input(delta)
 	_update_loco_state()
 	
+	_update_drift(delta)
+	
 	_update_speed(delta)
 	player.move_and_slide()
 
