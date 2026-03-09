@@ -2,15 +2,13 @@ extends CharacterBody3D
 class_name BoardController
 
 # =================================================
-# LOCOMOTION STATE ENUM
-enum LocomotionState {
-	GROUNDED,       # on floor, normal movement
-	DRIFTING,       # on floor, drifting
-	JUMP_CHARGING,  # on floor, charging a jump
-	AIRBORNE,       # in the air
-	WALL_RUNNING    # running along a wall
-}
-var loco_state: LocomotionState = LocomotionState.GROUNDED
+# LOCOMOTION STATE
+	#GROUNDED,       # on floor, normal movement
+	#DRIFTING,       # on floor, drifting
+	#JUMP_CHARGING,  # on floor, charging a jump
+	#AIRBORNE,       # in the air
+	#WALL_RUNNING    # running along a wall
+@export var loco_state_machine: BoardStateMachine
 
 # =================================================
 # CONFIG — MOTION
@@ -149,15 +147,15 @@ func _ready() -> void:
 # MAIN LOOP
 func _physics_process(delta: float) -> void:
 	# 1. Update State & Inputs
-	_read_input(delta)
+	#_read_input(delta)
 	if PlayerSFX:
 		PlayerSFX._update_jump_charge(delta, is_charging_jump, is_wall_running)
 
-	_update_drift(delta)
+	#_update_drift(delta)
 	_update_speed(delta)
 	_update_jump_state()
-	_update_air_pitch(delta)
-	_update_loco_state()
+	#_update_air_pitch(delta)
+	#_update_loco_state()
 
 	# 2. Physics & Momentum
 	_apply_slope_momentum(delta)
@@ -166,8 +164,8 @@ func _physics_process(delta: float) -> void:
 	_apply_horizontal_movement()
 
 	# Wall Run Detection
-	_detect_wall_running()
-	_update_loco_state()
+	#_detect_wall_running()
+	#_update_loco_state()
 
 	if was_wall_running and not is_wall_running:
 		_on_wall_run_exit()
@@ -202,11 +200,12 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if Cam:
-		Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
+		Cam._update_camera_logic(delta, loco_state_machine.get_current_state() == Drifting)
+		#Cam._update_camera_logic(delta, loco_state == LocomotionState.DRIFTING)
 
 	# 5. Post-move logic
-	_maintain_wall_speed()
-	_apply_ramp_boost_on_leave()
+	#_maintain_wall_speed()
+	#_apply_ramp_boost_on_leave()
 	_handle_landing(delta)
 
 	if PlayerSFX:
@@ -229,20 +228,6 @@ func _physics_process(delta: float) -> void:
 	if debug_enabled:
 		_update_debug(delta)
 
-# =================================================
-# LOCOMOTION STATE RESOLVER
-func _update_loco_state() -> void:
-	if is_wall_running:
-		loco_state = LocomotionState.WALL_RUNNING
-	elif is_on_floor():
-		if is_charging_jump:
-			loco_state = LocomotionState.JUMP_CHARGING
-		elif is_drifting:
-			loco_state = LocomotionState.DRIFTING
-		else:
-			loco_state = LocomotionState.GROUNDED
-	else:
-		loco_state = LocomotionState.AIRBORNE
 
 # =================================================
 # SURFACE IGNORE CHECK
@@ -290,14 +275,6 @@ func _update_jump_state() -> void:
 	elif not inp_jump_held:
 		is_charging_jump = false
 
-# =================================================
-# AIR CONTROLS (PITCH)
-func _update_air_pitch(delta: float) -> void:
-	var target_pitch: float = 0.0
-	if !is_on_floor() && !is_wall_running:
-		target_pitch = inp_pitch * deg_to_rad(air_pitch_max_angle)
-	var lerp_speed: float = air_pitch_responsiveness if (!is_on_floor() && !is_wall_running) else air_pitch_return_speed
-	current_air_pitch = lerp(current_air_pitch, target_pitch, lerp_speed * delta)
 
 # =================================================
 # JUMP
@@ -330,28 +307,6 @@ func _handle_landing(delta: float) -> void:
 		_dbg_log("EVENT: Landed — air_time: %.2fs, speed: %.1f" % [air_time, current_speed])
 		if PlayerSFX: PlayerSFX.play_land()
 
-# =================================================
-# DRIFT & DASH
-func _update_drift(delta: float) -> void:
-	if !is_on_floor() || current_speed < drift_min_speed:
-		is_drifting = false
-		drift_charge = 0.0
-		if PlayerSFX: PlayerSFX.stop_drift_loop()
-		return
-
-	is_drifting = inp_drift and abs(inp_steer) > 0.1
-	if is_drifting:
-		current_speed = move_toward(current_speed, 0.0, drift_deceleration_rate * delta)
-		drift_charge = move_toward(drift_charge, 1.0, delta / drift_max_charge_time)
-		if PlayerSFX: PlayerSFX.play_drift_loop()
-	else:
-		if PlayerSFX: PlayerSFX.stop_drift_loop()
-		if drift_charge >= 1.0:
-			dash_velocity = current_speed + drift_dash_force
-			dash_timer = drift_dash_duration
-			_dbg_log("EVENT: Drift DASH released — dash_velocity: %.1f" % dash_velocity)
-			if PlayerSFX: PlayerSFX.play_dash()
-			drift_charge = 0.0
 
 # =================================================
 # SPEED
@@ -360,37 +315,45 @@ func _update_speed(delta: float) -> void:
 		dash_timer -= delta
 		current_speed = dash_velocity
 		return
+	
+	## Jump_Charging State
+	#loco_state == LocomotionState.JUMP_CHARGING:
+	#if loco_state_machine.get_current_state() == JumpCharging:
+		#current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
+		#return
 
-	if loco_state == LocomotionState.JUMP_CHARGING:
-		current_speed = lerp(current_speed, 0.0, jump_charge_drag * delta)
-		return
+	## Drifting State
+	#loco_state == LocomotionState.DRIFTING:
+	#if loco_state_machine.get_current_state() == Drifting:
+		#return
 
-	if loco_state == LocomotionState.DRIFTING:
-		return
+	## Grounded State
+	#if inp_throttle > 0:
+		#current_speed = move_toward(current_speed, max_speed, acceleration * delta)
+	#elif inp_brake > 0:
+		#current_speed = move_toward(current_speed, 0.0, braking * delta)
+	#else:
+		#var drag: float = friction if is_on_floor() else air_drag
+		#current_speed = move_toward(current_speed, 0.0, drag * delta)
 
-	if inp_throttle > 0:
-		current_speed = move_toward(current_speed, max_speed, acceleration * delta)
-	elif inp_brake > 0:
-		current_speed = move_toward(current_speed, 0.0, braking * delta)
-	else:
-		var drag: float = friction if is_on_floor() else air_drag
-		current_speed = move_toward(current_speed, 0.0, drag * delta)
-
-	if !is_on_floor() && !is_wall_running:
-		var dive_factor: float = sin(current_air_pitch)
-		if dive_factor > 0:
-			current_speed += dive_speed_gain * dive_factor * delta
-		else:
-			current_speed -= pull_up_speed_loss * abs(dive_factor) * delta
-		current_speed = max(current_speed, 0.0)
+	## Airborne State
+	#if !is_on_floor() && !is_wall_running:
+		#var dive_factor: float = sin(current_air_pitch)
+		#if dive_factor > 0:
+			#current_speed += dive_speed_gain * dive_factor * delta
+		#else:
+			#current_speed -= pull_up_speed_loss * abs(dive_factor) * delta
+		#current_speed = max(current_speed, 0.0)
 
 	current_speed = clamp(current_speed, 0.0, max_velocity)
 
 # =================================================
 # PHYSICS & ROTATION
 func _apply_rotation(delta: float) -> void:
-	var turn_scale: float = 0.5 if loco_state == LocomotionState.JUMP_CHARGING else 1.0
-	if loco_state == LocomotionState.DRIFTING:
+	#loco_state == LocomotionState.JUMP_CHARGING
+	var turn_scale: float = 0.5 if loco_state_machine.get_current_state() == JumpCharging else 1.0
+	#loco_state == LocomotionState.DRIFTING
+	if loco_state_machine.get_current_state() == Drifting:
 		turn_scale *= drift_turn_multiplier
 	if !is_on_floor() && !is_wall_running:
 		turn_scale *= air_rotation_multiplier
@@ -431,36 +394,6 @@ func _apply_floor_stick(delta: float) -> void:
 		stick *= 2.0
 	velocity -= stick_normal * stick * delta
 
-# =================================================
-# WALL RUNNING
-func _detect_wall_running() -> void:
-	if is_on_floor():
-		is_wall_running = false
-		return
-	var found_wall: bool = false
-	for i in get_slide_collision_count():
-		var n: Vector3 = get_slide_collision(i).get_normal()
-		if abs(n.dot(Vector3.UP)) < 0.3:
-			wall_normal = n
-			found_wall = true
-			if not was_wall_running:
-				_dbg_log("EVENT: Wall run START — speed: %.1f, normal: %s" % [current_speed, wall_normal])
-			is_wall_running = true
-			break
-	if !found_wall:
-		is_wall_running = false
-
-func _maintain_wall_speed() -> void:
-	if !is_wall_running: return
-	velocity = velocity.slide(wall_normal).normalized() * current_speed
-	velocity -= wall_normal * stick_force * get_physics_process_delta_time()
-
-func _apply_ramp_boost_on_leave() -> void:
-	if was_on_floor && !is_on_floor():
-		var angle_factor: float = 1.0 - get_floor_normal().dot(Vector3.UP)
-		if angle_factor > 0.15:
-			velocity += velocity.normalized() * slope_launch_boost * angle_factor
-			_dbg_log("EVENT: Ramp boost — angle_factor: %.2f" % angle_factor)
 
 # =================================================
 # ALIGNMENTS
@@ -497,7 +430,8 @@ func _teleport_to_last_ground() -> void:
 # VISUALS
 func _update_board_visual(delta: float, Vec3: Vector3) -> void:
 	if !board_mesh: return
-	var lean_mult: float = drift_lean_multiplier if loco_state == LocomotionState.DRIFTING else 1.0
+	#loco_state == LocomotionState.DRIFTING
+	var lean_mult: float = drift_lean_multiplier if loco_state_machine.get_current_state() == Drifting else 1.0
 	var speed_percent: float = clamp(current_speed / max_speed, 0.2, 1.2)
 	var target_tilt: float = -smoothed_input_x * (max_lean_angle * lean_mult) * speed_percent
 	current_tilt = lerp(current_tilt, target_tilt, lean_responsiveness * delta)
@@ -514,7 +448,8 @@ func _update_board_visual(delta: float, Vec3: Vector3) -> void:
 
 	var visual_basis: Basis = Basis(right, Vec3, -fwd)
 	visual_basis = visual_basis.rotated(visual_basis.z, current_tilt)
-	var total_pitch: float = (crouch_tilt_amount if loco_state == LocomotionState.JUMP_CHARGING else 0.0) + current_air_pitch
+	#loco_state == LocomotionState.JUMP_CHARGING
+	var total_pitch: float = (crouch_tilt_amount if loco_state_machine.get_current_state() == JumpCharging else 0.0) + current_air_pitch
 	visual_basis = visual_basis.rotated(visual_basis.x, total_pitch)
 	board_mesh.global_transform.basis = board_mesh.global_transform.basis.slerp(visual_basis.orthonormalized(), 20.0 * delta)
 
@@ -529,7 +464,8 @@ func _update_debug(delta: float) -> void:
 	if debug_console_log and _debug_console_throttle <= 0.0:
 		_debug_console_throttle = 1.0
 		print("[Board] state=%-14s speed=%5.1f air=%.2fs wall_run=%s drift=%s drift_charge=%.0f%%" % [
-			LocomotionState.keys()[loco_state],
+			#LocomotionState.keys()[loco_state],
+			loco_state_machine.get_current_state(),
 			current_speed,
 			air_time,
 			"Y" if is_wall_running else "N",
