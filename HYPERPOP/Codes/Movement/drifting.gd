@@ -15,7 +15,7 @@ func exit_state() -> void:
 	print_debug("Exit Drifting")
 	player.is_drifting = false
 	player.drift_charge = 0.0
-	if player.PlayerSFX: 
+	if player.PlayerSFX:
 		player.PlayerSFX.stop_drift_loop()
 
 func physics_process(delta: float) -> void:
@@ -43,8 +43,7 @@ func _update_loco_state() -> void:
 		loco_state_machine.change_state("Grounded")
 		return
 
-	var drift_input = player.inp_drift and abs(player.inp_steer) > 0.1
-	if not drift_input:
+	if not player.drift_input:
 		_handle_drift_dash()
 		loco_state_machine.change_state("Grounded")
 

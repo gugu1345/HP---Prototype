@@ -1,7 +1,6 @@
 extends CharacterBody3D
 class_name BoardController
 
-# =================================================
 
 # =================================================
 # LOCOMOTION STATE
@@ -138,6 +137,8 @@ var last_ground_position: Vector3 = Vector3.ZERO
 var grounded_time: float = 0.0
 var current_jump_charge: float = 0.0
 var base_fov: float = 75.0
+var drift_input: bool = false
+var can_jump: bool = false
 
 # =================================================
 # CENTRALISED INPUT STATE — populated once per frame in _read_input()
@@ -153,6 +154,8 @@ var inp_pitch: float = 0.0
 # =================================================
 # READY
 func _ready() -> void:
+	if loco_state_machine == null: 
+		push_error("Loco State Machine is null, add BoardStateMachine to this player")
 	floor_max_angle = deg_to_rad(130)
 	floor_snap_length = snap_length
 	floor_stop_on_slope = false
@@ -184,11 +187,15 @@ func _physics_process(delta: float) -> void:
 		
 	_read_input(delta)
 	_update_air_pitch(delta)
-	_update_jump_charge(delta)
+	#_update_jump_charge(delta)
 	_update_speed(delta)
 	
-	_update_loco_state()
+	# Drifting
+	if is_on_floor():
+		drift_input = inp_drift and abs(inp_steer) > 0.1
 	
+	# Jumping
+	can_jump = is_on_floor() or is_wall_running
 	
 	# 2. Physics & Momentum
 	_apply_slope_momentum(delta)
@@ -198,12 +205,11 @@ func _physics_process(delta: float) -> void:
 	
 	# Wall Run Detection
 	_detect_wall_running()
-	#_update_loco_state()
 	
 	if was_wall_running and not is_wall_running:
 		_on_wall_run_exit()
 	
-		# 3. Per-state alignment & stick
+	# 3. Per-state alignment & stick
 	if is_wall_running:
 		smoothed_normal = smoothed_normal.lerp(wall_normal, 20.0 * delta)
 		up_direction = wall_normal
@@ -229,8 +235,7 @@ func _physics_process(delta: float) -> void:
 		if is_on_floor() or is_wall_running:
 			apply_floor_snap()
 		move_and_slide()
-		
-		
+
 
 	_maintain_wall_speed()
 	_apply_ramp_boost_on_leave()
@@ -267,8 +272,6 @@ func _surface_is_ignored() -> bool:
 
 
 # =================================================
-
-# =================================================
 # INPUT — single source of truth, pure reads only
 func _read_input(delta: float) -> void:
 	inp_throttle           = Input.get_action_strength("throttle")
@@ -281,17 +284,6 @@ func _read_input(delta: float) -> void:
 	inp_pitch = inp_throttle - inp_brake
 	input_dir.x = inp_steer
 
-# JUMP STATE
-func _update_jump_charge(delta: float) -> void:
-	var can_jump = is_on_floor() or is_wall_running
-	if can_jump and inp_jump_held:
-		is_charging_jump = true
-		current_jump_charge = move_toward(current_jump_charge, 1.0, delta / max_charge_time)
-	if is_charging_jump and not inp_jump_held:
-		_dbg_log("EVENT: Jump launched — charge: %.2f" % (PlayerSFX.current_jump_charge if PlayerSFX else 1.0))
-		_execute_jump()
-		is_charging_jump = false
-		current_jump_charge = 0.0
 
 # =================================================
 # JUMP
@@ -344,18 +336,6 @@ func _update_speed(delta: float) -> void:
 		current_speed += (dive_speed_gain if dive > 0 else pull_up_speed_loss) * dive * delta
 	current_speed = clamp(current_speed, 0.0, max_speed)
 
-# =================================================
-# DRIFT STATE
-func _update_loco_state() -> void:
-	if loco_state_machine == null: 
-		return
-
-	if is_on_floor():
-		var drift_input = inp_drift and abs(inp_steer) > 0.1
-		
-		if drift_input and current_speed >= drift_min_speed:
-			if loco_state_machine.current_state == null or loco_state_machine.current_state.name != "Drifting":
-				loco_state_machine.change_state("Drifting")
 
 # =================================================
 # PHYSICS & ROTATION

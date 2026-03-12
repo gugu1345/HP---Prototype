@@ -32,9 +32,9 @@ func _update_loco_state() -> void:
 	if player.is_wall_running:
 		return
 	elif player.is_on_floor():
-		if player.is_charging_jump:
+		if player.can_jump and player.inp_jump_held:
 			loco_state_machine.change_state("Jump_Charging")
-		elif player.is_drifting:
+		elif player.drift_input and player.current_speed >= player.drift_min_speed:
 			loco_state_machine.change_state("Drifting")
 		else:
 			loco_state_machine.change_state("Grounded")

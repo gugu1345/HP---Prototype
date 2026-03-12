@@ -9404,11 +9404,11 @@ shape = SubResource("BoxShape3D_nlt7y")
 
 [node name="RyderGear" parent="." unique_id=712845337 instance=ExtResource("2_5q8gg")]
 
-[node name="Cube" parent="RyderGear" index="0" unique_id=207449747]
+[node name="Cube" parent="RyderGear" index="0" unique_id=1892806733]
 transform = Transform3D(100, 1.5124469e-05, -1.5099559e-05, 1.5099559e-05, -99.99986, -0.16483377, -1.5124469e-05, 0.16483377, -99.99986, 0, -0.23746741, 0)
 mesh = SubResource("ArrayMesh_m2gkd")
 
-[node name="Cylinder_002" parent="RyderGear" index="1" unique_id=1342719777]
+[node name="Cylinder_002" parent="RyderGear" index="1" unique_id=1343176288]
 transform = Transform3D(41.10912, 0, 0, 0, -1.7969365e-06, 41.109116, 0, -41.109116, -1.7969365e-06, 0, -0.24596271, -0.8357613)
 mesh = SubResource("ArrayMesh_iwbpw")
 
@@ -9432,7 +9432,7 @@ transform = Transform3D(-0.568, 0, 8.576562e-08, 0, 0.568, 0, -8.576562e-08, 0, 
 script = ExtResource("4_bpovt")
 target = NodePath("../RYDER_TARGET")
 
-[node name="Skeleton3D" parent="RyderGear/RyderModel/metarig_001" parent_id_path=PackedInt32Array(509063562, 325512766) index="0" unique_id=593908001]
+[node name="Skeleton3D" parent="RyderGear/RyderModel/metarig_001" parent_id_path=PackedInt32Array(509063562, 1868062950) index="0" unique_id=653293408]
 bones/0/rotation = Quaternion(0.6716188, -0.4322899, -0.36234245, 0.48037648)
 bones/1/rotation = Quaternion(-0.08864927, 0.15527353, -0.050035164, 0.9826129)
 bones/2/rotation = Quaternion(-0.05702535, 0.091862455, 0.04194071, 0.99325246)
@@ -9497,59 +9497,59 @@ bones/113/rotation = Quaternion(-0.025335275, -0.0062907846, 0.87684715, -0.4800
 bones/119/rotation = Quaternion(0.9998606, 0, 0, -0.016700307)
 bones/121/rotation = Quaternion(0.9998606, 0, 0, -0.016699508)
 
-[node name="Cube" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="0" unique_id=1653540908]
+[node name="Cube" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="0" unique_id=558041803]
 mesh = SubResource("ArrayMesh_ceyki")
 skin = SubResource("Skin_er5jn")
 
-[node name="Cube_001" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="1" unique_id=22603936]
+[node name="Cube_001" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="1" unique_id=221824865]
 mesh = SubResource("ArrayMesh_oqwqe")
 skin = SubResource("Skin_c30ol")
 
-[node name="Cube_002" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="2" unique_id=1979785223]
+[node name="Cube_002" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="2" unique_id=1589594698]
 mesh = SubResource("ArrayMesh_l8ovw")
 skin = SubResource("Skin_78bk4")
 
-[node name="Cube_003" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="3" unique_id=1741512930]
+[node name="Cube_003" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="3" unique_id=571062514]
 mesh = SubResource("ArrayMesh_2hjq6")
 skin = SubResource("Skin_ugeqp")
 
-[node name="Cube_004" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="4" unique_id=1662337489]
+[node name="Cube_004" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="4" unique_id=674210473]
 mesh = SubResource("ArrayMesh_eix6d")
 skin = SubResource("Skin_c8a2k")
 
-[node name="Cube_006" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="5" unique_id=1842080965]
+[node name="Cube_006" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="5" unique_id=1873417854]
 mesh = SubResource("ArrayMesh_jj2vo")
 skin = SubResource("Skin_niit2")
 
-[node name="Cube_008" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="6" unique_id=26181547]
+[node name="Cube_008" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="6" unique_id=85118247]
 mesh = SubResource("ArrayMesh_7eota")
 skin = SubResource("Skin_ygkn6")
 
-[node name="Cube_009" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="7" unique_id=1244124828]
+[node name="Cube_009" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="7" unique_id=398712346]
 mesh = SubResource("ArrayMesh_fcynq")
 skin = SubResource("Skin_8xug0")
 
-[node name="Cube_011" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="8" unique_id=1705421647]
+[node name="Cube_011" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="8" unique_id=39273015]
 mesh = SubResource("ArrayMesh_c0huj")
 skin = SubResource("Skin_obj5h")
 
-[node name="Cube_012" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="9" unique_id=2043917454]
+[node name="Cube_012" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="9" unique_id=81872850]
 mesh = SubResource("ArrayMesh_hxyha")
 skin = SubResource("Skin_c30ol")
 
-[node name="Cube_016" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="10" unique_id=1923854285]
+[node name="Cube_016" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="10" unique_id=2018972029]
 mesh = SubResource("ArrayMesh_w1y0w")
 skin = SubResource("Skin_3rgsm")
 
-[node name="Hed_MSK002_M__M_MSK002_M" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="11" unique_id=418577679]
+[node name="Hed_MSK002_M__M_MSK002_M" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="11" unique_id=151892231]
 mesh = SubResource("ArrayMesh_p1fyl")
 skin = SubResource("Skin_v8884")
 
-[node name="Shs_SHT014__M_SHT014" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="12" unique_id=1565677939]
+[node name="Shs_SHT014__M_SHT014" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="12" unique_id=162671692]
 mesh = SubResource("ArrayMesh_wapij")
 skin = SubResource("Skin_bobsc")
 
-[node name="Torus" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="13" unique_id=2077109777]
+[node name="Torus" parent="RyderGear/RyderModel/metarig_001/Skeleton3D" index="13" unique_id=2141119145]
 mesh = SubResource("ArrayMesh_32lql")
 skin = SubResource("Skin_2gv70")
 
@@ -9571,7 +9571,7 @@ target_node = NodePath("../../../../FOOT_IK_R")
 min_distance = 0.001
 script = ExtResource("5_34dk1")
 
-[node name="AnimationPlayer" parent="RyderGear/RyderModel" index="2" unique_id=450620687]
+[node name="AnimationPlayer" parent="RyderGear/RyderModel" index="2" unique_id=1995226499]
 libraries/ = SubResource("AnimationLibrary_df5bf")
 
 [node name="BoardTarget" type="Node3D" parent="." unique_id=1026234284]
