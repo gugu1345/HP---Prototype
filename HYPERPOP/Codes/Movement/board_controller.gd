@@ -3,11 +3,6 @@ class_name BoardController
 
 # =================================================
 # LOCOMOTION STATE
-# GROUNDED,      # on floor, normal movement
-# DRIFTING,      # on floor, drifting
-# JUMP_CHARGING, # on floor, charging a jump
-# AIRBORNE,      # in the air
-# WALL_RUNNING   # running along a wall
 @export var loco_state_machine: Node 
 
 # CONFIG — MOTION
@@ -37,7 +32,7 @@ class_name BoardController
 @export var slope_alignment_speed: float = 15.0 
 @export var snap_length: float = 0.8
 @export var slope_launch_boost: float = 10.0
-@export_flags_3d_physics var ignore_align_mask: int = 0 ## Layers that won't trigger rotation or stick
+@export_flags_3d_physics var ignore_align_mask: int = 0 
 
 # =================================================
 # CONFIG — SLOPE PHYSICS
@@ -79,6 +74,11 @@ class_name BoardController
 @export var lean_responsiveness: float = 8.0
 @export_group("Animation")
 @export var crouch_tilt_amount: float = -0.12
+@export_group("Camera Effects")
+@export var dash_fov_boost: float = 90.0
+@export var fov_lerp_speed: float = 5.0    
+@export var fov_return_speed: float = 1.0   
+@export var dash_shake_intensity: float = 0.2 
 
 # =================================================
 # CONFIG — DRIFT
@@ -102,17 +102,6 @@ class_name BoardController
 @export var debug_enabled: bool = true
 @export var debug_console_log: bool = false
 var _debug_console_throttle: float = 0.0
-
-# =================================================
-# AUDIO
-@export_category("Audio")
-@export var sfx_jump_launch: AudioStreamPlayer3D
-@export var sfx_jump_charge_loop: AudioStreamPlayer3D
-@export var sfx_land: AudioStreamPlayer3D
-@export var sfx_drift_loop: AudioStreamPlayer3D
-@export var sfx_dash: AudioStreamPlayer3D
-@export var sfx_engine_loop: AudioStreamPlayer3D
-@export var sfx_brake: AudioStreamPlayer3D
 
 # =================================================
 # STATE
@@ -139,6 +128,7 @@ var current_jump_charge: float = 0.0
 var base_fov: float = 75.0
 var drift_input: bool = false
 var can_jump: bool = false
+var current_shake: float = 0.0 # Estado interno da vibração
 
 # =================================================
 # CENTRALISED INPUT STATE
@@ -153,6 +143,8 @@ var inp_pitch: float = 0.0
 # =================================================
 # READY
 func _ready() -> void:
+	if Cam and Cam is Camera3D:
+		base_fov = Cam.fov
 	if loco_state_machine == null: 
 		push_error("Loco State Machine is null, add BoardStateMachine to this player")
 	floor_max_angle = deg_to_rad(130)
@@ -173,7 +165,6 @@ func _ready() -> void:
 		label.size = Vector2(420, 320)
 		label.add_theme_color_override("default_color", Color(0.9, 1.0, 0.9))
 		label.add_theme_font_size_override("normal_font_size", 14)
-		_dbg_log("DEBUG: auto-created on-screen label")
 
 # =================================================
 # MAIN LOOP
@@ -232,7 +223,6 @@ func _physics_process(delta: float) -> void:
 			apply_floor_snap()
 			
 	move_and_slide()
-
 	_maintain_wall_speed()
 	_apply_ramp_boost_on_leave()
 	
@@ -242,12 +232,32 @@ func _physics_process(delta: float) -> void:
 	_handle_landing(delta)
 	_update_board_visual(delta)
 	
+	# --- SISTEMA DE CAMERA (FOV SUAVE + VIBRAÇÃO) ---
+	if Cam and Cam is Camera3D:
+		# FOV Dinâmico
+		var dashing = dash_timer > 0.0
+		var target_fov = base_fov + (dash_fov_boost if dashing else 0.0)
+		var current_fov_speed = fov_lerp_speed if dashing else fov_return_speed
+		Cam.fov = lerp(Cam.fov, target_fov, current_fov_speed * delta)
+		
+		# Vibração (Shake)
+		if dashing:
+			current_shake = dash_shake_intensity
+		
+		if current_shake > 0:
+			Cam.h_offset = randf_range(-current_shake, current_shake)
+			Cam.v_offset = randf_range(-current_shake, current_shake)
+			current_shake = move_toward(current_shake, 0.0, delta * 1.5) # Decaimento suave
+		else:
+			Cam.h_offset = 0
+			Cam.v_offset = 0
+	# -----------------------------------------------
+
 	if PlayerSFX and PlayerSFX.has_method("_update_engine_audio"):
 		PlayerSFX._update_engine_audio(current_speed, max_speed)
 	
 	was_on_floor = is_on_floor()
 	was_wall_running = is_wall_running
-	
 	if is_on_floor():
 		last_ground_position = global_position
 		
@@ -285,7 +295,6 @@ func _handle_landing(_delta: float) -> void:
 	if !was_on_floor:
 		floor_snap_length = snap_length
 		if air_time > 0.15:
-			_dbg_log("EVENT: Landed — air_time: %.2fs, speed: %.1f" % [air_time, current_speed])
 			if PlayerSFX and PlayerSFX.has_method("play_land"): 
 				PlayerSFX.play_land()
 
@@ -302,7 +311,7 @@ func _update_speed(delta: float) -> void:
 		elif inp_brake > 0: current_speed = move_toward(current_speed, 0.0, braking * delta)
 		else: current_speed = move_toward(current_speed, 0.0, friction * delta)
 	else:
-		current_speed = move_toward(current_speed, 0.0, air_drag * 0.05 * delta) # Inércia no ar
+		current_speed = move_toward(current_speed, 0.0, air_drag * 0.05 * delta)
 			
 	current_speed = clamp(current_speed, 0.0, max_speed)
 
@@ -310,10 +319,7 @@ func _apply_horizontal_movement(delta: float) -> void:
 	if is_wall_running: return
 	var fwd = -global_transform.basis.z
 	var rgt = global_transform.basis.x
-	
-	# Direção baseada no chão (só vai pra frente) vs Ar (frente + controle lateral arcade)
 	var target_vel = (fwd * current_speed) if is_on_floor() else (fwd * current_speed) + (rgt * smoothed_input_x * air_lateral_force)
-	
 	velocity.x = target_vel.x
 	velocity.z = target_vel.z
 
@@ -324,7 +330,6 @@ func _apply_rotation(delta: float) -> void:
 	if is_charging_jump: turn_scale = 0.5
 	elif is_drifting: turn_scale *= drift_turn_multiplier
 	elif !is_on_floor(): turn_scale = air_rotation_multiplier
-	
 	rotate_object_local(Vector3.UP, smoothed_input_x * rotation_speed * turn_scale * delta)
 
 func _apply_slope_momentum(delta: float) -> void:
@@ -349,10 +354,8 @@ func _apply_floor_stick(delta: float) -> void:
 func _align_to_surface(delta: float, target_normal: Vector3, align_speed: float) -> void:
 	var current_basis = global_transform.basis
 	var current_up = current_basis.y
-
 	if current_up.distance_squared_to(target_normal) > 0.0001:
 		var rotation_axis = current_up.cross(target_normal).normalized()
-		
 		if rotation_axis.length_squared() > 0.001:
 			var angle = current_up.angle_to(target_normal)
 			var alignment_rotation = Basis(rotation_axis, angle)
@@ -401,7 +404,5 @@ func _apply_ramp_boost_on_leave() -> void:
 func ChangeVelocity(vec: Vector3, force: float) -> void:
 	velocity += vec * force
 
-# =================================================
-# DEBUG
 func _dbg_log(msg: String) -> void:
 	if debug_enabled and debug_console_log: print("[BoardController] ", msg)
