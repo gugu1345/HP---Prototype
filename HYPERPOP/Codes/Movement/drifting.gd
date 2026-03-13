@@ -65,6 +65,11 @@ func _handle_drift_dash() -> void:
 		player.dash_velocity = player.current_speed + player.drift_dash_force
 		player.dash_timer = player.drift_dash_duration
 		
+		# --- MUDANÇA AQUI: Efeito de câmera baseado na velocidade do dash ---
+		if player.has_method("apply_camera_dash_effect"):
+			player.apply_camera_dash_effect(player.dash_velocity)
+		# -------------------------------------------------------------------
+		
 		player._dbg_log("EVENT: Drift DASH released — dash_velocity: %.1f" % player.dash_velocity)
 		
 		if player.PlayerSFX: 
